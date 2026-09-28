@@ -1,5 +1,8 @@
 import {
   area,
+  feature as geoFeature,
+  union,
+  buffer,
   bbox,
   polygon,
   cleanCoords,
@@ -13,6 +16,8 @@ import {
   lineIntersect,
 } from "@turf/turf";
 import type {
+  LineString,
+  MultiLineString,
   Polygon,
   MultiPolygon,
   Feature,
@@ -40,6 +45,17 @@ const vectors = (name: string) =>
     .map((feature) => ({ feature, bounds: bbox(feature) }));
 const coast = vectors("land"),
   lakes = vectors("lakes");
+const rivers = (
+  JSON.parse(
+    readFileSync(
+      new URL(
+        "../data/geography/rivers_lake_centerlines.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ) as FeatureCollection<LineString | MultiLineString>
+).features.map((feature) => ({ feature, bounds: bbox(feature) }));
 function candidates(source: typeof coast, b: number[]) {
   return source.filter(
     ({ bounds: a }) =>
@@ -48,10 +64,29 @@ function candidates(source: typeof coast, b: number[]) {
 }
 /** Clip once per territory. Individual local cells never scan the global coastline. */
 export function landParts(
-  feature: Feature<Polygon>,
+  feature: Feature<Polygon | MultiPolygon>,
 ): Feature<Polygon | MultiPolygon>[] {
   const bounds = bbox(feature) as [number, number, number, number];
-  const water = candidates(lakes, bounds);
+  const water = [...candidates(lakes, bounds)];
+  for (const r of rivers.filter(
+    ({ bounds: b }) =>
+      b[0] <= bounds[2] &&
+      b[2] >= bounds[0] &&
+      b[1] <= bounds[3] &&
+      b[3] >= bounds[1],
+  )) {
+    const clipped = bboxClip(r.feature, bounds);
+    if (!clipped.geometry.coordinates.length) continue;
+    const margin = buffer(clipped, 0.12, { units: "kilometers" });
+    if (margin) {
+      const parts =
+        margin.geometry.type === "MultiPolygon"
+          ? margin.geometry.coordinates.map((c) => polygon(c))
+          : [margin as Feature<Polygon>];
+      for (const feature of parts)
+        water.push({ feature, bounds: bbox(feature) });
+    }
+  }
   const result: Feature<Polygon | MultiPolygon>[] = [];
   for (const item of candidates(coast, bounds)) {
     const clipped = bboxClip(item.feature, bounds) as Feature<
@@ -162,14 +197,15 @@ export function normalizePolygon(
     throw new GameError("Geometria inválida. Desenhe novamente.");
   }
 }
-export function overlaps(a: Polygon, b: Polygon): boolean {
-  const result = intersect(
-    featureCollection([polygon(a.coordinates), polygon(b.coordinates)]),
-  );
+export function overlaps(
+  a: Polygon | MultiPolygon,
+  b: Polygon | MultiPolygon,
+): boolean {
+  const result = intersect(featureCollection([geoFeature(a), geoFeature(b)]));
   return !!result && area(result) > 0.01;
 }
 export function makeGrid(
-  feature: Feature<Polygon>,
+  feature: Feature<Polygon | MultiPolygon>,
   bounds: [number, number, number, number],
 ): string {
   const parts = landParts(feature);
@@ -236,7 +272,7 @@ export function makeGrid(
   return grid;
 }
 export function insideFootprint(
-  geometry: Polygon,
+  geometry: Polygon | MultiPolygon,
   bounds: number[],
   x: number,
   y: number,
@@ -261,4 +297,46 @@ export function parsePolygon(value: unknown): Polygon {
     if (error instanceof GameError) throw error;
     throw new GameError("Geometria inválida.");
   }
+}
+
+/** Geodesic surface area; independent of screen size and projection zoom. */
+export function calculateTerritoryAreaKm2(
+  geometry: Polygon | MultiPolygon,
+): number {
+  return area(geometry) / 1e6;
+}
+export function storedGeometry(geometry: Polygon | MultiPolygon) {
+  const feature = geoFeature(geometry);
+  return {
+    feature,
+    areaKm2: calculateTerritoryAreaKm2(geometry),
+    bounds: bbox(feature) as [number, number, number, number],
+  };
+}
+export function acquirableGeometry(
+  input: Feature<Polygon>,
+  occupied: (Polygon | MultiPolygon)[],
+) {
+  const parts = landParts(input);
+  requireValue(parts.length > 0, "A seleção não contém terra disponível.");
+  let available: Feature<Polygon | MultiPolygon> | null =
+    parts.length === 1 ? parts[0] : union(featureCollection(parts));
+  let occupiedArea = 0;
+  for (const geometry of occupied) {
+    if (!available) break;
+    const before = area(available);
+    available = difference(
+      featureCollection([available, geoFeature(geometry)]),
+    );
+    occupiedArea += before - (available ? area(available) : 0);
+  }
+  requireValue(
+    available && area(available) > 1,
+    "A seleção está inteiramente ocupada.",
+  );
+  return {
+    ...storedGeometry(available!.geometry),
+    totalAreaKm2: area(input) / 1e6,
+    occupiedAreaKm2: occupiedArea / 1e6,
+  };
 }

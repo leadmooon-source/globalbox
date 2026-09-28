@@ -1,4 +1,5 @@
-import { Prisma } from "@prisma/client";
+import { simulateNature, readNature } from "./nature.ts";
+import { GameClock } from "../shared/nature.ts";
 import { transact, db } from "./db.ts";
 import { event } from "./actions.ts";
 import {
@@ -27,6 +28,7 @@ export async function tick(now = new Date()) {
         resources: true,
       },
     });
+    const gameTime = new GameClock(state.gameTime).advance(dt);
     const changed: string[] = [];
     for (const t of territories) {
       const amounts = Object.fromEntries(
@@ -37,7 +39,11 @@ export async function tick(now = new Date()) {
       const unfinished = t.buildings.filter((b) => b.progress < 1),
         finished = t.buildings.filter((b) => b.progress >= 1);
       const jobs = new Map<string, number>();
+      const assigned = new Set(
+        readNature(t, gameTime).jobs.map((j) => j.characterId),
+      );
       for (const character of t.characters) {
+        if (assigned.has(character.id)) continue;
         let x = character.x,
           y = character.y,
           energy = character.energy,
@@ -169,7 +175,7 @@ export async function tick(now = new Date()) {
           await event(
             tx,
             t.id,
-            "BUILD_COMPLETE",
+            "BUILDING_COMPLETED",
             `${BUILDINGS[building.type as BuildingKind].label} concluída.`,
             t.ownerId,
           );
@@ -200,19 +206,7 @@ export async function tick(now = new Date()) {
           data: { growth: growth % 1, harvests: { increment: harvests } },
         });
       }
-      for (const b of finished) {
-        const workers = jobs.get(b.id) ?? 0;
-        if (workers && b.type === "Lumberyard") {
-          amounts.Wood += dt * 0.08 * workers;
-          production.Wood = (production.Wood ?? 0) + 0.08 * workers;
-        }
-        if (workers && b.type === "Mine") {
-          amounts.Stone += dt * 0.05 * workers;
-          amounts.Metal += dt * 0.012 * workers;
-          production.Stone = (production.Stone ?? 0) + 0.05 * workers;
-          production.Metal = (production.Metal ?? 0) + 0.012 * workers;
-        }
-      }
+      // Wood and ore are finite nature nodes. Work orders deliver cargo through simulateNature.
       const capacity =
         600 + finished.filter((b) => b.type === "Warehouse").length * 300;
       for (const r of t.resources)
@@ -225,11 +219,13 @@ export async function tick(now = new Date()) {
             consumption: consumption[r.kind] ?? 0,
           },
         });
+      await simulateNature(tx, t, gameTime, dt);
       changed.push(t.id);
     }
     await tx.worldState.update({
       where: { id: 1 },
       data: {
+        gameTime,
         tick: { increment: 1 },
         revision: { increment: 1 },
         lastTick: now,

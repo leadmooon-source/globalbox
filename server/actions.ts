@@ -1,11 +1,14 @@
+import { generateWorldNature } from "./region-nature.ts";
+import { type NatureState } from "../shared/nature.ts";
 import { once } from "./commands.ts";
 import { route } from "./pathfinding.ts";
-import { Prisma } from "@prisma/client";
-import type { Polygon } from "geojson";
+import type { Polygon, MultiPolygon } from "geojson";
 import { randomUUID } from "node:crypto";
 import { db, transact, requireValue, GameError, type Tx } from "./db.ts";
 import {
   normalizePolygon,
+  storedGeometry,
+  acquirableGeometry,
   overlaps,
   makeGrid,
   insideFootprint,
@@ -35,12 +38,13 @@ export const territoryInclude = {
 export async function config() {
   const value = await db.gameConfig.findUnique({ where: { id: 1 } });
   return {
-    pricing: (value?.pricing ? JSON.parse(value.pricing) : DEFAULT_PRICING) as unknown as PricingConfig,
+    pricing: (value?.pricing
+      ? JSON.parse(value.pricing)
+      : DEFAULT_PRICING) as unknown as PricingConfig,
     tickMs: value?.tickMs ?? 3000,
-    resourcePrices: (value?.resourcePrices ? JSON.parse(value.resourcePrices) : RESOURCE_PRICE) as Record<
-      ResourceKind,
-      number
-    >,
+    resourcePrices: (value?.resourcePrices
+      ? JSON.parse(value.resourcePrices)
+      : RESOURCE_PRICE) as Record<ResourceKind, number>,
   };
 }
 export async function event(
@@ -49,11 +53,25 @@ export async function event(
   type: string,
   text: string,
   actorId?: string,
+  payload: Record<string, unknown> = {},
 ) {
   await tx.territoryHistory.create({
     data: { territoryId, type, text, actorId },
   });
-  await tx.worldEvent.create({ data: { territoryId, type, text, actorId } });
+  const gameTime =
+    typeof payload.gameTime === "number"
+      ? payload.gameTime
+      : ((await tx.worldState.findUnique({ where: { id: 1 } }))?.gameTime ?? 0);
+  await tx.worldEvent.create({
+    data: {
+      territoryId,
+      type,
+      text,
+      actorId,
+      payload: JSON.stringify(payload),
+      gameTime,
+    },
+  });
 }
 export async function bump(tx: Tx) {
   await tx.worldState.upsert({
@@ -80,7 +98,11 @@ async function owner(tx: Tx, userId: string, territoryId: string) {
   );
   return territory!;
 }
-async function available(tx: Tx, geometry: Polygon, bounds: number[]) {
+async function available(
+  tx: Tx,
+  geometry: Polygon | MultiPolygon,
+  bounds: number[],
+) {
   const candidates = await tx.territory.findMany({
     where: {
       minLon: { lte: bounds[2] },
@@ -102,16 +124,37 @@ async function available(tx: Tx, geometry: Polygon, bounds: number[]) {
   return candidates;
 }
 export async function quote(userId: string, input: unknown) {
-  const normal = normalizePolygon(input),
+  const drawn = normalizePolygon(input),
     settings = await config();
   requireValue(
-    normal.areaKm2 >= settings.pricing.minArea &&
-      normal.areaKm2 <= settings.pricing.maxArea,
+    drawn.areaKm2 >= settings.pricing.minArea &&
+      drawn.areaKm2 <= settings.pricing.maxArea,
     `A área deve ter entre ${settings.pricing.minArea} e ${settings.pricing.maxArea} km².`,
   );
-  makeGrid(normal.feature, normal.bounds);
   return transact(async (tx) => {
-    await available(tx, normal.feature.geometry, normal.bounds);
+    const [west, south, east, north] = drawn.bounds;
+    const occupied = await tx.territory.findMany({
+      where: {
+        minLon: { lte: east },
+        maxLon: { gte: west },
+        minLat: { lte: north },
+        maxLat: { gte: south },
+      },
+      include: { geometry: true },
+    });
+    const normal = acquirableGeometry(
+      drawn.feature,
+      occupied.flatMap((t) =>
+        t.geometry
+          ? [JSON.parse(t.geometry.polygon) as Polygon | MultiPolygon]
+          : [],
+      ),
+    );
+    requireValue(
+      normal.areaKm2 >= settings.pricing.minArea,
+      "Área disponível pequena demais.",
+    );
+    makeGrid(normal.feature, normal.bounds);
     const [b0, b1, b2, b3] = normal.bounds;
     const nearby = await tx.territory.count({
       where: {
@@ -150,6 +193,8 @@ export async function quote(userId: string, input: unknown) {
     });
     return {
       id: value.id,
+      totalAreaKm2: normal.totalAreaKm2,
+      occupiedAreaKm2: normal.occupiedAreaKm2,
       areaKm2: value.areaKm2,
       priceCents: value.priceCents,
       expiresAt: value.expiresAt,
@@ -225,7 +270,7 @@ export async function claim(userId: string, quoteId: string, name: string) {
       "A cotação expirou. Solicite uma nova.",
       409,
     );
-    const normal = normalizePolygon(JSON.parse(q!.polygon));
+    const normal = storedGeometry(JSON.parse(q!.polygon));
     await available(tx, normal.feature.geometry, normal.bounds);
     const grid = makeGrid(normal.feature, normal.bounds);
     const debit = await tx.user.updateMany({
@@ -265,11 +310,23 @@ export async function claim(userId: string, quoteId: string, name: string) {
       },
     });
     await populate(tx, territory.id, grid);
+    const clock = await tx.worldState.findUniqueOrThrow({ where: { id: 1 } });
+    await tx.territory.update({
+      where: { id: territory.id },
+      data: {
+        nature: JSON.stringify(
+          generateWorldNature(
+            { ...territory, geometry: { polygon: q!.polygon }, buildings: [] },
+            clock.gameTime,
+          ),
+        ),
+      },
+    });
     const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
     await event(
       tx,
       territory.id,
-      "CLAIM",
+      "TERRITORY_PURCHASED",
       `@${user.username} fundou ${name}.`,
       userId,
     );
@@ -520,6 +577,7 @@ export async function respondOffer(
 export function canPlace(
   t: {
     grid: string;
+    nature?: string;
     minLon: number;
     minLat: number;
     maxLon: number;
@@ -550,10 +608,24 @@ export function canPlace(
       if (
         terrain === "0" ||
         terrain === "w" ||
+        (terrain === "m" && kind !== "Mine" && kind !== "Road") ||
         (kind === "Farm" && ["s", "m"].includes(terrain))
       )
         return false;
     }
+  const nature = t.nature ? (JSON.parse(t.nature) as Partial<NatureState>) : {};
+  if (
+    nature.nodes?.some(
+      (n) =>
+        n.state !== "EXHAUSTED" &&
+        n.state !== "DECOMPOSING" &&
+        n.x + 1 > x &&
+        n.x - 1 < x + size &&
+        n.y + 0.5 > y &&
+        n.y - 2 < y + size,
+    )
+  )
+    return false;
   return !t.buildings.some((b) => {
     const bs = BUILDINGS[b.type as BuildingKind]?.size ?? 1;
     return x < b.x + bs && x + size > b.x && y < b.y + bs && y + size > b.y;
@@ -631,7 +703,7 @@ export async function build(
         await event(
           tx,
           territoryId,
-          "BUILD_ORDER",
+          "BUILDING_CREATED",
           `Construção de ${BUILDINGS[kind].label.toLowerCase()} iniciada.`,
           userId,
         );
@@ -661,7 +733,8 @@ export async function exchange(
           where: { territoryId_kind: { territoryId, kind } },
         });
         const prices = JSON.parse(
-          (await tx.gameConfig.findUniqueOrThrow({ where: { id: 1 } })).resourcePrices
+          (await tx.gameConfig.findUniqueOrThrow({ where: { id: 1 } }))
+            .resourcePrices,
         ) as Record<ResourceKind, number>;
         const total = prices[kind] * quantity;
         requireValue(

@@ -1,0 +1,46 @@
+{
+  "archive": "Farm RPG FREE 16x16 - Tiny Asset Pack.rar",
+  "sha256": "04d09f01686e6c5b8be179f0943b69096ce6feba7d3a134972bc16bd2905c5ca",
+  "files": [
+    {
+      "source": "Farm RPG FREE 16x16 - Tiny Asset Pack/Farm Animals/Baby Chicken Yellow.png",
+      "file": "chick.png",
+      "sha256": "163b3baf6c0adbbbd053274b4c1214f02838cb2e0ceaf8261621c25c9d6a6d39"
+    },
+    {
+      "source": "Farm RPG FREE 16x16 - Tiny Asset Pack/Farm Animals/Chicken Blonde  Green.png",
+      "file": "chicken-blonde.png",
+      "sha256": "600757b4f3ad40f0088eb836f0a7829346fc228104fc4d76095f325c33868498"
+    },
+    {
+      "source": "Farm RPG FREE 16x16 - Tiny Asset Pack/Farm Animals/Chicken Red.png",
+      "file": "chicken-red.png",
+      "sha256": "7c36ceabe7d63e957b7e02602900d7a527ff1d030c6c7a98588911e618b1720c"
+    },
+    {
+      "source": "Farm RPG FREE 16x16 - Tiny Asset Pack/Farm Animals/Female Cow Brown.png",
+      "file": "cow-female.png",
+      "sha256": "77d1875ebb79ca96afa6bb0a85ed3e9c62dc99635978c24f730d270275f365c6"
+    },
+    {
+      "source": "Farm RPG FREE 16x16 - Tiny Asset Pack/Farm Animals/Male Cow Brown.png",
+      "file": "cow-male.png",
+      "sha256": "4bfd41269f333238fa4b13e11ba268f08e9987bf811779e6cfc828431b1e878b"
+    },
+    {
+      "source": "Farm RPG FREE 16x16 - Tiny Asset Pack/Objects/Maple Tree.png",
+      "file": "maple.png",
+      "sha256": "a1debd27abccb69fcda22c01fa4e88c064a170f35bde93e1a7626608b2ae29ff"
+    },
+    {
+      "source": "Farm RPG FREE 16x16 - Tiny Asset Pack/Objects/Spring Crops.png",
+      "file": "crops.png",
+      "sha256": "34c9f9c803c3a17450ea87c19575c8c8c9bb835132b0b39db58fdaa81f46fa8d"
+    },
+    {
+      "source": "Farm RPG FREE 16x16 - Tiny Asset Pack/Tileset/Tileset Grass Spring.png",
+      "file": "grass.png",
+      "sha256": "531e39fc16fceb26ad50317b48995ef72700ca334fee623032acc944bb3f8697"
+    }
+  ]
+}

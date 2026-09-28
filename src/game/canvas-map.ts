@@ -398,9 +398,12 @@ class CanvasMap {
       const features =
         data.type === "FeatureCollection" ? data.features : [data];
       for (const f of features) {
-        if (f.geometry.type !== "Polygon") continue;
+        if (f.geometry.type !== "Polygon" && f.geometry.type !== "MultiPolygon")
+          continue;
         c.beginPath();
-        for (const ring of f.geometry.coordinates) {
+        for (const ring of f.geometry.type === "Polygon"
+          ? f.geometry.coordinates
+          : f.geometry.coordinates.flat()) {
           ring.forEach((p, i) => {
             const xy = this.project(p as [number, number]);
             if (i) c.lineTo(xy.x, xy.y);
@@ -411,12 +414,22 @@ class CanvasMap {
         const color = f.properties?.color ?? "#fff6d4";
         if (layer.type === "fill") {
           c.fillStyle = color;
-          c.globalAlpha = 0.22;
-          c.fill();
+          c.globalAlpha =
+            layer.id === "draft-fill"
+              ? 0.2
+              : f.properties?.selected
+                ? 0.07
+                : 0.025;
+          c.fill("evenodd");
           c.globalAlpha = 1;
         } else {
           c.strokeStyle = color;
-          c.lineWidth = f.properties?.selected ? 3 : 2;
+          c.lineWidth =
+            layer.id === "draft-line"
+              ? 1.5
+              : f.properties?.selected
+                ? 1.3
+                : 0.6;
           c.setLineDash(layer.id === "draft-line" ? [6, 4] : []);
           c.stroke();
         }
@@ -435,4 +448,8 @@ class CanvasMap {
 }
 export function createCanvasMap(options: MapOptions): MapLibreMap {
   return new CanvasMap(options) as unknown as MapLibreMap;
+}
+
+export function canvasMapTerrain(map: MapLibreMap): TerrainTiles {
+  return (map as unknown as CanvasMap).terrainTiles;
 }

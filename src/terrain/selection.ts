@@ -7,13 +7,13 @@ export interface GeographicView {
   zoom: number;
 }
 /** Overview + two parent resolutions. Bound the complete working set, not only
- * leaf tiles, so deep exploration cannot churn the cache on missing ancestors. */
+ * leaf tiles (including environmental metadata), so deep exploration cannot churn the cache on missing ancestors. */
 export function terrainRequests(view: GeographicView): {
   level: number;
   keys: TileKey[];
   visible: TileKey[];
 } {
-  let z = Math.max(0, Math.min(20, Math.ceil(view.zoom) + 1));
+  let z = Math.max(0, Math.min(24, Math.ceil(view.zoom) + 1));
   while (true) {
     const n = 2 ** z,
       a = mercatorPoint(Math.max(-180, view.west), view.north),
@@ -45,7 +45,7 @@ export function terrainRequests(view: GeographicView): {
       keys.set(tileId(key), key);
     };
     for (const key of visible) append(key);
-    if (keys.size <= 60 || !z)
+    if (keys.size <= 52 || !z)
       return { level: z, keys: [...keys.values()], visible };
     z--;
   }

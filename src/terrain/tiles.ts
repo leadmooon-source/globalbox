@@ -1,3 +1,5 @@
+import { EnvironmentRenderer } from "../environment/renderer.ts";
+import type { EnvironmentTile } from "../environment/tile.ts";
 import { terrainRequests } from "./selection.ts";
 import type { Map as MapType } from "maplibre-gl";
 import { BudgetCache } from "../streaming/cache.ts";
@@ -9,6 +11,7 @@ interface Reply {
   data?: ArrayBuffer;
   error?: string;
   ms: number;
+  environment?: EnvironmentTile;
 }
 interface Job {
   id: number;
@@ -20,9 +23,11 @@ interface Job {
 }
 /** One active job, camera-priority queue, bounded cache, explicit bitmap disposal. */
 export class TerrainTiles {
+  readonly environment = new EnvironmentRenderer();
   readonly cache = new BudgetCache<{
     key: TileKey;
     bitmap: ImageBitmap;
+    environment?: EnvironmentTile;
     bytes: number;
   }>(64 * 1024 * 1024, (t) => t.bitmap.close());
   readonly metrics = {
@@ -119,6 +124,8 @@ export class TerrainTiles {
   async png(key: TileKey, signal: AbortSignal) {
     const result = await this.request(key, "png", signal);
     if (signal.aborted) throw new DOMException("Cancelled", "AbortError");
+    if (!this.disposed && result.environment)
+      this.environment.put(result.environment);
     return result.data!;
   }
   private setView(m: MapType) {
@@ -143,7 +150,7 @@ export class TerrainTiles {
     }
     this.queue = keep;
     this.cache.pinned.clear();
-    // Protect the entire <=60-tile working set, including fallback parents.
+    // Protect the entire <=52-tile working set, including fallback parents.
     // Drawing an old cached tile must not evict a parent still being requested.
     for (const id of keys.keys()) this.cache.pinned.add(id);
     for (const [id, key] of keys) {
@@ -157,7 +164,13 @@ export class TerrainTiles {
             this.metrics.dropped++;
             return;
           }
-          this.cache.set(id, { key, bitmap: r.bitmap!, bytes: 512 * 512 * 4 });
+          if (r.environment) this.environment.put(r.environment);
+          this.cache.set(id, {
+            key,
+            bitmap: r.bitmap!,
+            environment: r.environment,
+            bytes: 512 * 512 * 4 + (r.environment?.bytes ?? 0),
+          });
           this.changed();
         })
         .catch((e) => {
@@ -187,6 +200,8 @@ export class TerrainTiles {
       // Never draw obsolete finer LOD over a newly zoomed-out view.
       if (z > this.level) continue;
       this.cache.get(id);
+      if (t.environment && !this.environment.cache.peek(id))
+        this.environment.put(t.environment);
       const left = Math.round(a.x),
         top = Math.round(a.y);
       c.drawImage(
@@ -208,5 +223,6 @@ export class TerrainTiles {
     this.queue = [];
     this.worker.terminate();
     this.cache.clear();
+    this.environment.dispose();
   }
 }

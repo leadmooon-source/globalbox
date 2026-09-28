@@ -1,67 +1,21 @@
 import type { Building, Person, Farm } from "./types.ts";
 import { BUILDINGS, type BuildingKind } from "../../shared/game.ts";
 import { characterArt, characterFrame } from "./characters.ts";
-import { clearTerrainCache } from "./terrain.ts";
+import { assetImages } from "../environment/assets.ts";
 type C = CanvasRenderingContext2D;
 
-const TREE_ASSETS: Record<number, HTMLImageElement> = {};
-if (typeof Image !== "undefined") {
-  let loaded = 0;
-  const load = (src: string) => {
-    const i = new Image();
-    i.onload = () => {
-      if (++loaded === 5) clearTerrainCache();
-    };
-    i.src = src;
-    return i;
-  };
-  TREE_ASSETS[0] = load("/forest.png");
-  TREE_ASSETS[1] = load("/jungle.png");
-  TREE_ASSETS[2] = load("/snow.png");
-  TREE_ASSETS[3] = load("/savanna.png");
-  TREE_ASSETS[4] = load("/beach.png");
-}
+/** Official maple art is also used by existing wood farms. */
 export function tree(c: C, x: number, y: number, s: number, variant = 0) {
-  c.save();
-  c.translate(Math.round(x), Math.round(y));
-  c.scale(s, s);
-  const img = TREE_ASSETS[variant] || TREE_ASSETS[0];
-  if (img && img.complete && img.naturalWidth > 0) {
-    const w = img.naturalWidth * 0.5;
-    const h = img.naturalHeight * 0.5;
-    c.drawImage(img, -w / 2, -h + 2, w, h);
-  } else {
-    // Fallback pixel art
-    c.fillStyle = "#183d3444";
-    c.fillRect(-2, 1, 10, 3);
-    c.fillStyle = "#533b29";
-    c.fillRect(-1, -5, 3, 8);
-    c.fillStyle = "#b18a4d";
-    c.fillRect(-1, -3, 1, 5);
-    if (variant === 2) {
-      c.fillStyle = "#234d42";
-      c.fillRect(-5, -7, 11, 5);
-      c.fillRect(-4, -11, 9, 5);
-      c.fillRect(-2, -15, 5, 5);
-      c.fillStyle = "#428b58";
-      c.fillRect(-4, -8, 6, 2);
-      c.fillRect(-3, -12, 5, 2);
-      c.fillRect(-1, -16, 2, 3);
-    } else {
-      c.fillStyle = variant ? "#285c39" : "#376329";
-      c.fillRect(-6, -9, 13, 6);
-      c.fillRect(-4, -13, 9, 10);
-      c.fillStyle = variant ? "#45964d" : "#65a83e";
-      c.fillRect(-5, -11, 10, 6);
-      c.fillRect(-3, -14, 6, 5);
-      c.fillStyle = variant ? "#80c360" : "#a6cf57";
-      c.fillRect(-3, -13, 4, 2);
-      c.fillRect(-5, -9, 3, 2);
-      c.fillStyle = "#5c8b38";
-      c.fillRect(3, -7, 2, 3);
-    }
-  }
-  c.restore();
+  const image = assetImages.get(variant ? "maple" : "sapling");
+  if (!image) return;
+  c.imageSmoothingEnabled = false;
+  c.drawImage(
+    image,
+    Math.round(x - (image.width * s) / 4),
+    Math.round(y - (image.height * s) / 2),
+    (image.width * s) / 2,
+    (image.height * s) / 2,
+  );
 }
 function paintHouse(
   c: C,
@@ -104,6 +58,13 @@ function paintHouse(
       for (let col = 0; col < 6; col++) {
         const px = col * 4 + 1,
           py = 2 - row * 3;
+        const sheet = assetImages.get("crops-sheet");
+        if (sheet && (crop === "Wheat" || crop === "Corn")) {
+          const stage = Math.min(7, Math.floor(growth * 8)),
+            sy = crop === "Wheat" ? 96 : 64;
+          c.drawImage(sheet, stage * 16, sy, 16, 16, px - 2, py - 7, 8, 8);
+          continue;
+        }
         c.fillStyle = growth > 0.65 && crop === "Wheat" ? "#f5d45c" : "#76b541";
         c.fillRect(px, py, 1, -2 - Math.floor(growth * 4));
         if (growth > 0.35) c.fillRect(px - 1, py - 2, 3, 1);
@@ -176,7 +137,12 @@ function characterImage(profession: string) {
 
 // Original sprites share reusable frames; simulation attributes never live in this cache.
 const atlas = new Map<string, HTMLCanvasElement>();
+let artRevision = 0;
 function frame(key: string, paint: (ctx: C) => void) {
+  if (artRevision !== assetImages.size) {
+    atlas.clear();
+    artRevision = assetImages.size;
+  }
   let canvas = atlas.get(key);
   if (canvas) return canvas;
   canvas = document.createElement("canvas");

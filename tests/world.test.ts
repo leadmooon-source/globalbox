@@ -97,7 +97,8 @@ test('neighboring geography gutters and procedural fields share global coordinat
  assert.notDeepEqual(generatePlants({...ra,seed:12345}),pa);
  const owned=(plants:typeof pa,key:ChunkKey)=>plants.filter(p=>p.x>=key.x*256&&p.x<(key.x+1)*256&&p.y>=key.y*256&&p.y<(key.y+1)*256);
  const ids=[...owned(pa,a),...owned(pb,b)].map(p=>`${p.x}:${p.y}`);assert.equal(new Set(ids).size,ids.length);
- const sharedA=pa.filter(p=>p.x>=rb.originX+4&&p.x<ra.originX+ra.width-4),sharedB=pb.filter(p=>p.x>=rb.originX+4&&p.x<ra.originX+ra.width-4);
+ // Full crowns and neighboring collision candidates require a 24-cell safe gutter.
+ const sharedA=pa.filter(p=>p.x>=rb.originX+24&&p.x<ra.originX+ra.width-24),sharedB=pb.filter(p=>p.x>=rb.originX+24&&p.x<ra.originX+ra.width-24);
  assert.deepEqual(sharedA,sharedB);
  for(const p of pa) {
   const i=Math.floor((p.y-ra.originY)/ra.step)*ra.width+Math.floor((p.x-ra.originX)/ra.step);

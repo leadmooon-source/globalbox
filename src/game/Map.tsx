@@ -1,19 +1,33 @@
+import { assetImages } from "../environment/assets.ts";
+import {
+  GAME_TIME,
+  WORLD_EPOCH,
+  type NatureNode,
+} from "../../shared/nature.ts";
 import { TerrainTiles } from "../terrain/tiles.ts";
 import { useEffect, useRef, useState } from "react";
 import type { MapOptions } from "maplibre-gl";
-import { createCanvasMap } from "./canvas-map.ts";
+import {
+  EnvironmentRenderer,
+  type EnvironmentView,
+  type ScreenRect,
+} from "../environment/renderer.ts";
+import { mercatorInverse } from "../terrain/geography.ts";
+import { BUILDINGS, type BuildingKind } from "../../shared/game.ts";
+import { createCanvasMap, canvasMapTerrain } from "./canvas-map.ts";
 import type { Map as MapType, GeoJSONSource } from "maplibre-gl";
-import { area, polygon, simplify } from "@turf/turf";
-import type { Polygon, FeatureCollection } from "geojson";
+import { area, polygon, simplify, booleanPointInPolygon } from "@turf/turf";
+import type { Polygon, MultiPolygon, FeatureCollection } from "geojson";
 import type { Territory, Person } from "./types.ts";
 import { house, person } from "./sprites.ts";
 import { CharacterMotion } from "./motion.ts";
 const characterMotion = new CharacterMotion();
 import { Icon } from "./icons.tsx";
 import type { ViewBounds } from "../../shared/contracts.ts";
-import { terrainCanvas, animal } from "./terrain.ts";
+import { animal } from "./terrain.ts";
 import "maplibre-gl/dist/maplibre-gl.css";
 export let activeMap: MapType | undefined;
+export let activeEnvironment: EnvironmentRenderer | undefined;
 export interface MapProps {
   territories: Territory[];
   details: Territory[];
@@ -22,7 +36,18 @@ export interface MapProps {
   onView: (bounds: ViewBounds) => void;
   selected: Territory | null;
   drawing: boolean;
-  draft: Polygon | null;
+  draft: Polygon | MultiPolygon | null;
+  gameTime: number;
+  onInspect: (
+    position: [number, number],
+    object?: { id: string; asset: string },
+    land?: boolean,
+  ) => void;
+  onNode: (territory: Territory, node: NatureNode) => void;
+  onDiscoverTree: (
+    territory: Territory,
+    hit: { id: string; lon: number; lat: number; level: number },
+  ) => void;
   ownerId?: string;
   destination: { center: [number, number]; zoom: number; nonce: number } | null;
   political: boolean;
@@ -47,6 +72,12 @@ export function WorldMap(props: MapProps) {
     points = useRef<[number, number][]>([]),
     drawingPointer = useRef<number | null>(null);
   latest.current = props;
+  const clockSample = useRef({
+    time: props.gameTime,
+    received: performance.now(),
+  });
+  if (clockSample.current.time !== props.gameTime)
+    clockSample.current = { time: props.gameTime, received: performance.now() };
   const [vertexMode, setVertexMode] = useState(false),
     [vertexCount, setVertexCount] = useState(0);
   const cursor = useRef<[number, number]>([innerWidth / 2, innerHeight / 2]);
@@ -59,6 +90,7 @@ export function WorldMap(props: MapProps) {
       dispose = () => {};
     const setup = async () => {
       let disposeTerrain = () => {};
+      let environment: EnvironmentRenderer;
       const createMap = async (options: MapOptions) => {
         const probe = document.createElement("canvas");
         const gl = probe.getContext("webgl2");
@@ -67,6 +99,7 @@ export function WorldMap(props: MapProps) {
           const { Map, addProtocol, removeProtocol } =
             await import("maplibre-gl");
           const tiles = new TerrainTiles();
+          environment = tiles.environment;
           addProtocol("terrain", async (params, controller) => {
             const [z, x, y] = params.url
               .replace("terrain://", "")
@@ -75,7 +108,7 @@ export function WorldMap(props: MapProps) {
             if (
               ![z, x, y].every(Number.isInteger) ||
               z < 0 ||
-              z > 20 ||
+              z > 24 ||
               x < 0 ||
               y < 0 ||
               x >= 2 ** z ||
@@ -95,7 +128,9 @@ export function WorldMap(props: MapProps) {
             throw error;
           }
         }
-        return createCanvasMap(options);
+        const fallback = createCanvasMap(options);
+        environment = canvasMapTerrain(fallback).environment;
+        return fallback;
       };
       const m = await createMap({
         container,
@@ -116,7 +151,7 @@ export function WorldMap(props: MapProps) {
               tiles: ["terrain://{z}/{x}/{y}"],
               tileSize: 256,
               minzoom: 0,
-              maxzoom: 20,
+              maxzoom: 24,
               attribution: "Natural Earth",
             },
           },
@@ -144,6 +179,7 @@ export function WorldMap(props: MapProps) {
         return;
       }
       map.current = m;
+      activeEnvironment = environment!;
       Object.defineProperty(container, "camera", {
         value: m,
         configurable: true,
@@ -156,7 +192,7 @@ export function WorldMap(props: MapProps) {
           id: "territory-fill",
           type: "fill",
           source: "territories",
-          paint: { "fill-color": ["get", "color"], "fill-opacity": 0.2 },
+          paint: { "fill-color": ["get", "color"], "fill-opacity": 0.035 },
         });
         m.addLayer({
           id: "territory-border",
@@ -164,7 +200,7 @@ export function WorldMap(props: MapProps) {
           source: "territories",
           paint: {
             "line-color": ["get", "color"],
-            "line-width": ["case", ["get", "selected"], 3, 1.7],
+            "line-width": ["case", ["get", "selected"], 1.5, 0.65],
           },
         });
         m.addSource("draft", { type: "geojson", data: empty });
@@ -215,6 +251,27 @@ export function WorldMap(props: MapProps) {
           );
           return;
         }
+        const local = [...p.details, ...(p.selected ? [p.selected] : [])];
+        for (const t of local) {
+          const a = localPoint(m, t, 0, 0),
+            b = localPoint(m, t, 64, 64),
+            sx = (b.x - a.x) / 64;
+          if (sx < 2) continue;
+          for (const n of [...(t.nature?.nodes ?? [])].reverse()) {
+            if (n.state === "EXHAUSTED" || n.state === "RESPAWNING") continue;
+            const pos = localPoint(m, t, n.x, n.y),
+              height = nodeHeight(n, m.getZoom());
+            if (
+              e.point.x > pos.x - height * 0.6 &&
+              e.point.x < pos.x + height * 0.6 &&
+              e.point.y > pos.y - height &&
+              e.point.y < pos.y + sx * 0.2
+            ) {
+              p.onNode(t, n);
+              return;
+            }
+          }
+        }
         if (p.selected?.characters) {
           for (const character of p.selected.characters) {
             const pos = localPoint(m, p.selected, character.x, character.y);
@@ -222,6 +279,18 @@ export function WorldMap(props: MapProps) {
               p.onPerson(character);
               return;
             }
+          }
+        }
+        const hit = environment.hitPlant(e.point.x, e.point.y);
+        if (hit) {
+          const owner = p.details.find(
+            (t) =>
+              t.ownerId === p.ownerId &&
+              booleanPointInPolygon([hit.lon, hit.lat], t.geometry.polygon),
+          );
+          if (owner) {
+            p.onDiscoverTree(owner, hit);
+            return;
           }
         }
         const features = m.queryRenderedFeatures(e.point, {
@@ -237,6 +306,12 @@ export function WorldMap(props: MapProps) {
             return Math.hypot(pos.x - e.point.x, pos.y - e.point.y) < 18;
           });
           if (nearest) p.onSelect(nearest.id);
+          else
+            p.onInspect(
+              [e.lngLat.lng, e.lngLat.lat],
+              environment.hitPlant(e.point.x, e.point.y),
+              environment.isLand(e.point.x, e.point.y),
+            );
         }
       });
       let resizeFrame = 0;
@@ -272,8 +347,18 @@ export function WorldMap(props: MapProps) {
         paintOverlay(
           m,
           overlay.current,
-          latest.current,
+          {
+            ...latest.current,
+            gameTime:
+              clockSample.current.time +
+              Math.min(
+                3,
+                (performance.now() - clockSample.current.received) / 1000,
+              ),
+          },
           reduced.matches ? 0 : time,
+          environment,
+          reduced.matches,
         );
       };
       frame = requestAnimationFrame(render);
@@ -285,6 +370,7 @@ export function WorldMap(props: MapProps) {
         m.remove();
         disposeTerrain();
         activeMap = undefined;
+        activeEnvironment = undefined;
       };
     };
     void setup()
@@ -323,11 +409,7 @@ export function WorldMap(props: MapProps) {
       })),
     };
     (m.getSource("territories") as GeoJSONSource).setData(features);
-    m.setLayoutProperty(
-      "territory-border",
-      "visibility",
-      props.political ? "visible" : "none",
-    );
+    m.setLayoutProperty("territory-border", "visibility", "none");
     m.setLayoutProperty(
       "earth",
       "visibility",
@@ -608,6 +690,8 @@ function paintOverlay(
   canvas: HTMLCanvasElement | null,
   props: MapProps,
   time: number,
+  environment: EnvironmentRenderer,
+  reduced: boolean,
 ) {
   if (!canvas) return;
   const w = canvas.clientWidth,
@@ -621,6 +705,91 @@ function paintOverlay(
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.clearRect(0, 0, w, h);
   c.imageSmoothingEnabled = false;
+  const exclusions: ScreenRect[] = [];
+  for (const t of [
+    ...props.details,
+    ...(props.selected &&
+    !props.details.some((t) => t.id === props.selected?.id)
+      ? [props.selected]
+      : []),
+  ])
+    for (const building of t.buildings ?? []) {
+      const size = BUILDINGS[building.type as BuildingKind]?.size ?? 1;
+      const a = localPoint(m, t, building.x - 0.5, building.y - 0.5),
+        b = localPoint(m, t, building.x + size + 0.5, building.y + size + 0.5);
+      exclusions.push({ x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y });
+    }
+  const overridden = new Set(
+    props.details.flatMap(
+      (t) =>
+        t.nature?.nodes.flatMap((n) => (n.sourceId ? [n.sourceId] : [])) ?? [],
+    ),
+  );
+  const view: EnvironmentView = {
+    width: w,
+    height: h,
+    level: Math.min(24, Math.ceil(m.getZoom()) + 1),
+    signature: `${m.getCenter().lng}/${m.getCenter().lat}/${m.getZoom()}/${props.details.map((t) => `${t.id}:${t.nature?.nodes.length ?? 0}`).join()}`,
+    exclusions,
+    excludesPlant: (_x, _y, id) => !!id && overridden.has(id),
+    bounds: (t) => {
+      const n = 256 * 2 ** t.level,
+        a = m.project(mercatorInverse(t.originX / n, t.originY / n)),
+        b = m.project(
+          mercatorInverse((t.originX + 256) / n, (t.originY + 256) / n),
+        );
+      return { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y };
+    },
+    project: (lon, lat) => m.project([lon, lat]),
+    unproject: (x, y) => {
+      const p = m.unproject([x, y]);
+      return [p.lng, p.lat];
+    },
+  };
+  environment.clock.setSimulationTime(WORLD_EPOCH + props.gameTime * 1000);
+  if (props.terrain) {
+    environment.drawGround(c, view, reduced);
+    environment.drawAnimals(c, view, reduced);
+  }
+  for (const t of props.territories) {
+    const a = m.project([t.minLon, t.maxLat]),
+      b = m.project([t.maxLon, t.minLat]),
+      width = b.x - a.x;
+    if (b.x < 0 || a.x > w || b.y < 0 || a.y > h) continue;
+    const detail =
+      props.details.find((d) => d.id === t.id) ??
+      (t.id === props.selected?.id ? props.selected : null);
+    if (detail?.grid && width > 130) {
+      c.save();
+      c.globalAlpha = Math.min(1, (width - 130) / 130);
+      drawLocal(c, m, detail, time, w, h, props.gameTime, environment);
+      c.restore();
+    }
+  }
+  if (props.terrain) environment.drawWeather(c, view, reduced);
+  if (props.political)
+    for (const t of props.territories) {
+      const a = m.project([t.minLon, t.maxLat]),
+        b = m.project([t.maxLon, t.minLat]);
+      if (b.x - a.x < 40 || b.x < 0 || a.x > w || b.y < 0 || a.y > h) continue;
+      c.beginPath();
+      const rings =
+        t.geometry.polygon.type === "Polygon"
+          ? t.geometry.polygon.coordinates
+          : t.geometry.polygon.coordinates.flat();
+      for (const ring of rings) {
+        ring.forEach((p, i) => {
+          const q = m.project(p as [number, number]);
+          if (i) c.lineTo(q.x, q.y);
+          else c.moveTo(q.x, q.y);
+        });
+        c.closePath();
+      }
+      c.strokeStyle = t.id === props.selected?.id ? "#e2e5b8aa" : "#b7c79d60";
+      c.lineWidth = t.id === props.selected?.id ? 1.2 : 0.6;
+      c.stroke();
+    }
+
   for (const t of props.territories) {
     const p = m.project([(t.minLon + t.maxLon) / 2, (t.minLat + t.maxLat) / 2]);
 
@@ -632,12 +801,6 @@ function paintOverlay(
     const detail =
       props.details.find((d) => d.id === t.id) ??
       (selected ? props.selected : null);
-    if (detail?.grid && width > 130) {
-      c.save();
-      c.globalAlpha = Math.min(1, (width - 130) / 130);
-      drawLocal(c, m, detail, time, w, h);
-      c.restore();
-    }
     if (width < 100) {
       c.fillStyle = t.ownerId === props.ownerId ? "#38563c" : "#faf3db";
       c.strokeStyle = "#63826b";
@@ -647,7 +810,7 @@ function paintOverlay(
       c.fill();
       c.stroke();
     }
-    if (m.getZoom() > 4 || selected) {
+    if (selected || (m.getZoom() > 9 && width > 180)) {
       c.font = "600 11px system-ui";
       c.textAlign = "center";
       c.fillStyle = "#f7f4e9";
@@ -663,6 +826,18 @@ function paintOverlay(
     }
   }
 }
+function nodeHeight(n: NatureNode, zoom: number) {
+  const factor = 2 ** (zoom - Math.ceil(zoom));
+  return (
+    factor *
+    (["FALLEN", "DECOMPOSING"].includes(n.state)
+      ? 10
+      : n.kind === "Tree"
+        ? (n.pixelHeight ?? 24) *
+          (n.state === "SEEDLING" || n.state === "YOUNG" ? n.growth : 1)
+        : 18)
+  );
+}
 function drawLocal(
   c: CanvasRenderingContext2D,
   m: MapType,
@@ -670,22 +845,73 @@ function drawLocal(
   time: number,
   w: number,
   h: number,
+  gameTime: number,
+  environment: EnvironmentRenderer,
 ) {
   const nw = localPoint(m, t, 0, 0),
     se = localPoint(m, t, 64, 64),
     sx = (se.x - nw.x) / 64,
-    scale = Math.max(0.4, Math.min(5, sx / 8));
+    scale = Math.max(0.4, Math.min(1.3, sx / 8));
   c.save();
   c.beginPath();
-  t.geometry.polygon.coordinates[0].forEach((pt, i) => {
-    const p = m.project(pt as [number, number]);
-    if (i) c.lineTo(p.x, p.y);
-    else c.moveTo(p.x, p.y);
-  });
-  c.closePath();
-  c.clip();
-  const terrain = terrainCanvas(t);
-  c.drawImage(terrain, nw.x, nw.y, se.x - nw.x, se.y - nw.y);
+  const rings =
+    t.geometry.polygon.type === "Polygon"
+      ? t.geometry.polygon.coordinates
+      : t.geometry.polygon.coordinates.flat();
+  for (const ring of rings) {
+    ring.forEach((pt, i) => {
+      const p = m.project(pt as [number, number]);
+      if (i) c.lineTo(p.x, p.y);
+      else c.moveTo(p.x, p.y);
+    });
+    c.closePath();
+  }
+  c.clip("evenodd");
+  for (const n of t.nature?.nodes ?? []) {
+    if (n.state === "EXHAUSTED" || n.state === "RESPAWNING") continue;
+    const p = localPoint(m, t, n.x, n.y);
+    if (
+      p.x < -80 ||
+      p.y < -80 ||
+      p.x > w + 80 ||
+      p.y > h + 80 ||
+      !environment.isLand(p.x, p.y)
+    )
+      continue;
+    const stump = ["FALLEN", "DECOMPOSING"].includes(n.state),
+      young = n.state === "SEEDLING" || n.state === "YOUNG";
+    const im = assetImages.get(
+      stump ? "cutStump" : young ? "youngOak" : n.asset,
+    );
+    if (!im) continue;
+    const height = nodeHeight(n, m.getZoom()),
+      width = (height * im.width) / im.height;
+    // Keep the complete sprite footprint on the rendered land mask as well as the server grid.
+    if (
+      !environment.isLand(p.x - width / 2, p.y - height) ||
+      !environment.isLand(p.x + width / 2, p.y - height)
+    )
+      continue;
+    c.save();
+    c.translate(Math.round(p.x), Math.round(p.y));
+    if (n.state === "FALLING" && time) {
+      const phase = Math.min(
+        1,
+        Math.max(0, (gameTime - n.phaseAt) / GAME_TIME.fall),
+      );
+      c.rotate((Math.floor(phase * 4) * Math.PI) / 10);
+    }
+    if (n.state === "DAMAGED" && time)
+      c.translate(Math.floor(time / 180) % 2, 0);
+    c.drawImage(
+      im,
+      Math.round(-width / 2),
+      Math.round(-height),
+      Math.round(width),
+      Math.round(height),
+    );
+    c.restore();
+  }
   const animals = [...(t.grid ?? "")]
     .map((v, i) => (v === "g" && i % 137 === 0 ? i : -1))
     .filter((i) => i >= 0)

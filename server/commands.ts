@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { Prisma } from "@prisma/client";
 import { requireValue, type Tx } from "./db.ts";
 export async function once<T>(
   tx: Tx,

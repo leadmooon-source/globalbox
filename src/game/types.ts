@@ -1,4 +1,5 @@
-import type { Polygon } from "geojson";
+import type { NatureState } from "../../shared/nature.ts";
+import type { Polygon, MultiPolygon } from "geojson";
 export interface User {
   id: string;
   username: string;
@@ -39,6 +40,7 @@ export interface Farm {
   harvests: number;
 }
 export interface Territory {
+  nature?: NatureState;
   id: string;
   number: number;
   name: string;
@@ -49,7 +51,7 @@ export interface Territory {
   minLat: number;
   maxLon: number;
   maxLat: number;
-  geometry: { polygon: Polygon };
+  geometry: { polygon: Polygon | MultiPolygon };
   color: string;
   createdAt: string;
   grid?: string;
@@ -90,11 +92,13 @@ export interface World {
   }[];
   total: number;
   players: number;
-  state: { tick: number; revision: number };
+  state: { tick: number; revision: number; gameTime?: number };
 }
 export interface Quote {
   id: string;
-  geometry: Polygon;
+  geometry: Polygon | MultiPolygon;
+  totalAreaKm2?: number;
+  occupiedAreaKm2?: number;
   areaKm2: number;
   priceCents: number;
   expiresAt: string;
@@ -124,11 +128,9 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
     if (!retryable) throw error;
     response = await fetch("/api" + path, options);
   }
-  const data = await response
-    .json()
-    .catch(() => ({
-      error: `Falha de conexão (HTTP ${response.status}). Tente novamente.`,
-    }));
+  const data = await response.json().catch(() => ({
+    error: `Falha de conexão (HTTP ${response.status}). Tente novamente.`,
+  }));
   if (!response.ok) throw Error(data.error ?? "Falha de conexão.");
   return data;
 }
