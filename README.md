@@ -6,21 +6,18 @@ MVP de um mundo compartilhado no navegador. Jogadores desenham fronteiras livres
 
 ## Executar
 
-Requisitos: Node.js 24+, npm e Docker com Compose. O Compose usa rede do host Linux; em outras plataformas, configure PostgreSQL e Redis acessíveis pelas URLs locais correspondentes.
+Requisitos: Node.js 24+ e npm. A instalação local usa SQLite; Docker e Redis não são necessários.
 
 ```bash
 npm ci
 npm run env:init
-docker compose --env-file .env.local up -d
 npm run db:generate
 npm run db:deploy
 npm run db:seed  # opcional: três comunidades demonstrativas
 npm run dev
 ```
 
-Abra http://localhost:5173. API em 3001, PostgreSQL em 55432 e Redis em 56379. `env:init` gera senhas aleatórias e mantém uma configuração existente. `.env.local` é privada e ignorada pelo Git. Não remova volumes para reiniciar os serviços.
-
-Na sandbox desta tarefa, o Docker utiliza `unix:///home/vercel-sandbox/runtime/global-territory/docker.sock`. Use `DOCKER_HOST=unix:///home/vercel-sandbox/runtime/global-territory/docker.sock docker compose --env-file .env.local up -d`. A restauração do daemon está documentada em `docs/sandbox.md`.
+Abra http://localhost:5173. API em 3001. `env:init` cria `.env.local` privada e mantém qualquer configuração existente. O banco novo fica em `prisma/sandbox.local.db`, ignorado pelo Git; o banco histórico `prisma/dev.db` não é utilizado. Se você já possui uma configuração PostgreSQL antiga, faça backup e ajuste `DATABASE_URL` para um arquivo SQLite antes de executar os comandos. Redis é opcional: configure `REDIS_URL` somente se tiver um serviço disponível.
 
 ### Produção local
 
@@ -29,7 +26,7 @@ npm run build
 NODE_ENV=production npm run start
 ```
 
-A aplicação, API e WebSocket são servidos juntos em http://localhost:3001. Vite preview isolado não substitui o servidor multiplayer. Em implantação HTTPS configure `COOKIE_SECURE=true`; use `TRUST_PROXY=true` somente atrás de um proxy confiável de um salto. Persistência depende dos volumes PostgreSQL e Redis; PostgreSQL é a fonte de verdade. Faça backups regulares com `pg_dump` e teste a restauração antes de disponibilizar uma instalação pública.
+A aplicação, API e WebSocket são servidos juntos em http://localhost:3001. Vite preview isolado não substitui o servidor multiplayer. Em implantação HTTPS configure `COOKIE_SECURE=true`; use `TRUST_PROXY=true` somente atrás de um proxy confiável de um salto. A persistência usa o arquivo SQLite configurado em `DATABASE_URL`. Execute uma única instância do servidor; faça backups consistentes do banco e teste a restauração antes de disponibilizar uma instalação pública.
 
 ## Jogar
 
