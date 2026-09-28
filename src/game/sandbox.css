@@ -1,0 +1,245 @@
+.world-hud,
+.world-tools,
+.world-card,
+.world-message,
+.world-hint {
+  position: absolute;
+  z-index: 10;
+  background: #142d28ed;
+  color: #f2efda;
+  border: 1px solid #72826a;
+  box-shadow: 3px 3px 0 #0d211c65;
+  font:
+    13px system-ui,
+    sans-serif;
+}
+.world-hud {
+  top: 18px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 9px 14px;
+  border-radius: 5px;
+}
+.world-hud strong {
+  letter-spacing: 2px;
+  margin-right: auto;
+}
+.sandbox small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  color: #bbc9b3;
+  margin-top: 4px;
+}
+.sandbox button {
+  color: inherit;
+  border: 1px solid #7c8b7166;
+  background: #243f34;
+  padding: 9px 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.sandbox button:hover {
+  background: #405e42;
+}
+.sandbox button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.sandbox button.primary,
+.sandbox button.active {
+  background: #a8ba75;
+  color: #182c26;
+  border-color: #d4dda0;
+}
+.world-tools {
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  padding: 6px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+.world-card {
+  right: 22px;
+  top: 99px;
+  width: 280px;
+  padding: 20px;
+  max-height: calc(100vh - 210px);
+  overflow: auto;
+  border-radius: 4px;
+}
+.world-card h2 {
+  font-size: 18px;
+  margin: 0 0 12px;
+  color: #ecedcd;
+}
+.world-card h3 {
+  font-size: 12px;
+  margin-top: 20px;
+}
+.world-card p {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #c6d3bc;
+  margin: 10px 0;
+}
+.world-card button {
+  display: block;
+  width: 100%;
+  margin: 7px 0;
+  text-align: left;
+}
+.world-card label {
+  font-size: 11px;
+  display: block;
+  margin: 12px 0;
+}
+.world-card input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px;
+  background: #10241f;
+  color: #edf0d5;
+  border: 1px solid #6c7d65;
+  box-sizing: border-box;
+}
+.world-card dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  font-size: 12px;
+}
+.world-card dd {
+  margin: 0;
+  text-align: right;
+  color: #d6e3ae;
+}
+.world-card b {
+  float: right;
+}
+.world-message {
+  bottom: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 9px 14px;
+  max-width: 85vw;
+  border-color: #c7a374;
+}
+.world-message button {
+  margin-left: 12px;
+}
+.world-hint {
+  top: 98px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 14px;
+  white-space: nowrap;
+}
+.world-hint button {
+  margin-left: 15px;
+}
+.world-card .history-entry {
+  border-left: 2px solid #6f8e5f;
+  padding-left: 9px;
+  font-size: 11px;
+}
+.sandbox .map-controls {
+  top: 110px;
+  left: 20px;
+  right: auto;
+}
+.sandbox .drawing-controls {
+  bottom: 85px;
+}
+.sandbox .map-attribution {
+  font-size: 9px;
+  bottom: 3px;
+  opacity: 0.7;
+}
+.sandbox .map-controls button {
+  color: #203b30;
+}
+.sandbox .map-controls span {
+  color: #203b30;
+}
+@media (max-width: 600px) {
+  .world-hud {
+    left: 8px;
+    right: 8px;
+    top: 8px;
+    gap: 9px;
+    padding: 8px;
+  }
+  .world-hud strong {
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+  .world-hud small {
+    font-size: 8px;
+  }
+  .world-hud > span {
+    display: none;
+  }
+  .world-card {
+    top: auto;
+    bottom: 89px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-height: 42vh;
+    padding: 14px;
+  }
+  .world-tools {
+    bottom: 22px;
+    gap: 2px;
+    padding: 4px;
+  }
+  .world-tools button {
+    padding: 10px 9px;
+  }
+  .world-tools span {
+    font-size: 10px;
+  }
+  .world-hint {
+    top: 79px;
+    max-width: 88vw;
+    white-space: normal;
+  }
+  .sandbox .map-controls {
+    top: 79px;
+    left: 8px;
+  }
+  .world-message {
+    bottom: 82px;
+    width: 85vw;
+  }
+  .sandbox .drawing-controls {
+    bottom: 80px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sandbox * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+.sandbox .map-controls {
+  bottom: auto;
+  height: auto;
+}
+.sandbox .map-controls button {
+  background: #ececdb;
+  color: #203b30;
+}
+.sandbox .map-controls button:hover {
+  background: #cbd4b5;
+}

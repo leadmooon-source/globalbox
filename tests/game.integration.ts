@@ -9,12 +9,10 @@ import { tick } from "../server/simulation.ts";
 import { canPlace } from "../server/actions.ts";
 import type { Territory, Quote, User, Offer } from "../src/game/types.ts";
 if (
-  !process.env.GT_TEST_SCHEMA ||
-  !new URL(process.env.DATABASE_URL!).searchParams
-    .get("schema")
-    ?.startsWith("test_")
+  !process.env.GT_TEST_SCHEMA?.includes("globalbox-test-") ||
+  process.env.DATABASE_URL !== `file:${process.env.GT_TEST_SCHEMA}/test.db`
 )
-  throw Error("Isolated schema required");
+  throw Error("Isolated SQLite required");
 const origin = "http://127.0.0.1:3002";
 let server: ChildProcess;
 let logs = "";
@@ -291,7 +289,7 @@ test("workers complete construction and farms harvest with terrain-safe movement
         energy: 100,
         hunger: 0,
         job: site.id,
-        path: [],
+        path: "[]",
       },
     });
     await db.worldState.update({
@@ -311,7 +309,7 @@ test("workers complete construction and farms harvest with terrain-safe movement
       energy: 100,
       hunger: 0,
       job: farm.id,
-      path: [],
+      path: "[]",
     },
   });
   const foodBefore = (
@@ -457,4 +455,193 @@ test("marketplace race has one winner and survives server restart", async () => 
   await winner.request("/me", undefined, 401);
   assert.equal(await db.purchase.count(), 3);
   assert.ok((await db.territoryHistory.count()) >= 6);
+});
+
+test("nature work is authorized, idempotent, persists across restart and delivers finite resources before regeneration", async () => {
+  const client = await new Client().register("nature_test");
+  const q = await client.request<Quote>("/territories/quote", {
+    geometry: shape(2, 48),
+  });
+  const t = await client.request<Territory>("/territories/claim", {
+    quoteId: q.id,
+    name: "Forest test",
+  });
+  const before = await client.request<Territory>("/territories/" + t.id);
+  assert.ok(before.grid && before.nature && before.nature.nodes.length > 5);
+  const tree = before.nature!.nodes.find((n) => n.kind === "Tree")!;
+  assert.ok(
+    tree.sourceId,
+    "tree identity comes from the shared procedural generator",
+  );
+  await b.request(
+    "/territories/" + t.id + "/harvest",
+    { nodeId: tree.id, requestId: randomUUID() },
+    403,
+  );
+  const request = { nodeId: tree.id, requestId: randomUUID() };
+  await client.request("/territories/" + t.id + "/harvest", request);
+  await client.request("/territories/" + t.id + "/harvest", request);
+  assert.equal(
+    (await client.request<Territory>("/territories/" + t.id)).nature!.jobs
+      .length,
+    1,
+  );
+  let now = (
+    await db.worldState.findUniqueOrThrow({ where: { id: 1 } })
+  ).lastTick.getTime();
+  let cut: Territory = before;
+  for (let i = 0; i < 70; i++) {
+    now += 3000;
+    await tick(new Date(now));
+    cut = await client.request<Territory>("/territories/" + t.id);
+    if (
+      cut.nature!.nodes.find((n) => n.id === tree.id)!.state === "FALLEN" &&
+      !cut.nature!.jobs.length
+    )
+      break;
+  }
+  assert.equal(
+    cut.nature!.nodes.find((n) => n.id === tree.id)!.state,
+    "FALLEN",
+  );
+  assert.equal(cut.nature!.jobs.length, 0);
+  assert.equal(
+    cut.resources!.find((r) => r.kind === "Wood")!.amount,
+    before.resources!.find((r) => r.kind === "Wood")!.amount + 12,
+  );
+  assert.equal(
+    await db.worldEvent.count({
+      where: { territoryId: t.id, type: "TREE_FELLED" },
+    }),
+    1,
+  );
+  await stop();
+  await start();
+  assert.equal(
+    (
+      await client.request<Territory>("/territories/" + t.id)
+    ).nature!.nodes.find((n) => n.id === tree.id)!.state,
+    "FALLEN",
+  );
+  const rock = cut.nature!.nodes.find((n) => n.kind !== "Tree");
+  assert.ok(rock, "region has stone nodes");
+  const stoneBefore = cut.resources!.find((r) => r.kind === "Stone")!.amount;
+  await client.request("/territories/" + t.id + "/harvest", {
+    nodeId: rock!.id,
+    requestId: randomUUID(),
+  });
+  for (let i = 0; i < 70; i++) {
+    now += 3000;
+    await tick(new Date(now));
+    cut = await client.request<Territory>("/territories/" + t.id);
+    if (!cut.nature!.jobs.length) break;
+  }
+  assert.equal(
+    cut.resources!.find((r) => r.kind === "Stone")!.amount,
+    stoneBefore + 10,
+  );
+  assert.equal(cut.nature!.nodes.find((n) => n.id === rock!.id)!.quantity, 30);
+  await client.request("/dev/time", { days: 4 });
+  let regrown = (
+    await client.request<Territory>("/territories/" + t.id)
+  ).nature!.nodes.find((n) => n.id === tree.id)!;
+  assert.equal(regrown.state, "SEEDLING");
+  assert.notDeepEqual([regrown.x, regrown.y], [tree.x, tree.y]);
+  await client.request("/dev/time", { days: 4 });
+  regrown = (
+    await client.request<Territory>("/territories/" + t.id)
+  ).nature!.nodes.find((n) => n.id === tree.id)!;
+  assert.equal(regrown.state, "MATURE");
+  assert.equal(regrown.quantity, 12);
+});
+
+test("partial acquisition subtracts existing ownership and preserves both disconnected parcels", async () => {
+  const client = await new Client().register("partial_test");
+  const base = await client.request<Quote>("/territories/quote", {
+    geometry: shape(4, 48),
+  });
+  await client.request("/territories/claim", {
+    quoteId: base.id,
+    name: "Middle",
+  });
+  const q = await client.request<Quote>("/territories/quote", {
+    geometry: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [3.99, 48.005],
+          [4.04, 48.005],
+          [4.04, 48.025],
+          [3.99, 48.025],
+          [3.99, 48.005],
+        ],
+      ],
+    },
+  });
+  assert.equal(q.geometry.type, "MultiPolygon");
+  assert.ok(q.occupiedAreaKm2! > 0);
+  assert.ok(q.areaKm2 < q.totalAreaKm2!);
+  const claimed = await client.request<Territory>("/territories/claim", {
+    quoteId: q.id,
+    name: "Two clearings",
+  });
+  assert.equal(claimed.geometry.polygon.type, "MultiPolygon");
+});
+
+test("additional LOD trees are verified, materialized once, and reject forged candidates", async () => {
+  const client = await new Client().register("lod_tree_test");
+  const q = await client.request<Quote>("/territories/quote", {
+    geometry: shape(6, 48),
+  });
+  const t = await client.request<Territory>("/territories/claim", {
+    quoteId: q.id,
+    name: "Zoom forest",
+  });
+  const { regionVectors } = await import("../server/region-nature.ts");
+  const { rasterRegion, mercatorPoint, mercatorInverse } =
+    await import("../src/terrain/geography.ts");
+  const { generatePlants } = await import("../src/world/vegetation.ts");
+  const { createCanvas } = await import("@napi-rs/canvas");
+  const level = 18,
+    at = mercatorPoint(6.015, 48.015),
+    scale = 256 * 2 ** level;
+  const region = rasterRegion(
+    {
+      z: level,
+      x: Math.floor(at[0] * 2 ** level),
+      y: Math.floor(at[1] * 2 ** level),
+    },
+    regionVectors(),
+    (w, h) => createCanvas(w, h) as unknown as OffscreenCanvas,
+  );
+  const p = generatePlants(region).find(
+    (p) => !t.nature!.nodes.some((n) => n.sourceId === p.id),
+  )!;
+  assert.ok(p);
+  const [lon, lat] = mercatorInverse(p.x / scale, p.y / scale),
+    input = { sourceId: p.id, lon, lat, level, requestId: randomUUID() };
+  const first = await client.request<{ id: string; sourceId: string }>(
+    "/territories/" + t.id + "/tree",
+    input,
+  );
+  assert.equal(first.sourceId, p.id);
+  assert.deepEqual(
+    await client.request("/territories/" + t.id + "/tree", input),
+    first,
+  );
+  const latest = await client.request<Territory>("/territories/" + t.id);
+  assert.equal(
+    latest.nature!.nodes.filter((n) => n.sourceId === p.id).length,
+    1,
+  );
+  await client.request(
+    "/territories/" + t.id + "/tree",
+    { ...input, sourceId: "forged", requestId: randomUUID() },
+    409,
+  );
+  await b.request(
+    "/territories/" + t.id + "/tree",
+    { ...input, requestId: randomUUID() },
+    403,
+  );
 });

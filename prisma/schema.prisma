@@ -23,6 +23,7 @@ model Session {
   @@index([expiresAt])
 }
 model Territory {
+  nature String @default("{}")
   id String @id @default(uuid())
   number Int @unique @default(0)
   name String
@@ -171,6 +172,8 @@ model Resource {
   @@unique([territoryId, kind])
 }
 model WorldEvent {
+  payload String @default("{}")
+  gameTime Float @default(0)
   id String @id @default(uuid())
   type String
   text String
@@ -180,6 +183,7 @@ model WorldEvent {
   @@index([createdAt])
 }
 model WorldState {
+  gameTime Float @default(0)
   id Int @id @default(1)
   tick Int @default(0)
   revision Int @default(0)

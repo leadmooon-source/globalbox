@@ -1,3 +1,4 @@
+import { harvest, advanceClock, inspectTree } from "./nature.ts";
 import express from "express";
 import { randomUUID } from "node:crypto";
 const instanceId = randomUUID();
@@ -24,7 +25,11 @@ import * as actions from "./actions.ts";
 import { tick, cleanup } from "./simulation.ts";
 function formatTerritory(t: any) {
   if (!t) return t;
-  const { grid, ...rest } = t;
+  const { grid, nature, ...rest } = t;
+  if (t.characters) {
+    rest.grid = grid;
+    rest.nature = JSON.parse(nature || "{}");
+  }
   if (rest.geometry && typeof rest.geometry.polygon === "string") {
     rest.geometry.polygon = JSON.parse(rest.geometry.polygon);
   }
@@ -32,7 +37,8 @@ function formatTerritory(t: any) {
     rest.characters = rest.characters.map((c: any) => ({
       ...c,
       path: typeof c.path === "string" ? JSON.parse(c.path) : c.path,
-      inventory: typeof c.inventory === "string" ? JSON.parse(c.inventory) : c.inventory
+      inventory:
+        typeof c.inventory === "string" ? JSON.parse(c.inventory) : c.inventory,
     }));
   }
   return rest;
@@ -247,11 +253,13 @@ app.get("/api/me", authenticate, async (_req, res) =>
 );
 app.get("/api/me/territories", authenticate, async (_req, res) =>
   res.json(
-    await db.territory.findMany({
-      where: { ownerId: res.locals.user.id },
-      include: actions.territoryInclude,
-      orderBy: { createdAt: "desc" },
-    }).then(list => list.map(formatTerritory)),
+    await db.territory
+      .findMany({
+        where: { ownerId: res.locals.user.id },
+        include: actions.territoryInclude,
+        orderBy: { createdAt: "desc" },
+      })
+      .then((list) => list.map(formatTerritory)),
   ),
 );
 app.get("/api/me/offers", authenticate, async (_req, res) => {
@@ -335,10 +343,12 @@ app.get("/api/regions", async (req, res) => {
     .max(12)
     .parse(String(req.query.ids ?? "").split(","));
   res.json(
-    await db.territory.findMany({
-      where: { id: { in: ids } },
-      include: actions.territoryInclude,
-    }).then(list => list.map(formatTerritory)),
+    await db.territory
+      .findMany({
+        where: { id: { in: ids } },
+        include: actions.territoryInclude,
+      })
+      .then((list) => list.map(formatTerritory)),
   );
 });
 app.get("/api/territories/:id", async (req, res) => {
@@ -404,7 +414,7 @@ app.post("/api/territories/claim", authenticate, async (req, res) => {
     data.name,
   );
   await changed();
-  res.json(result);
+  res.json(formatTerritory(result));
 });
 app.post("/api/territories/:id/listing", authenticate, async (req, res) => {
   const data = z.object({ priceCents: cents.nullable() }).parse(req.body);
@@ -451,6 +461,41 @@ app.post("/api/offers/:id/respond", authenticate, async (req, res) => {
   );
   await changed();
   res.json(result);
+});
+app.post("/api/territories/:id/tree", authenticate, async (req, res) => {
+  const input = z
+    .object({
+      sourceId: z.string().max(128),
+      lon: z.number().min(-180).max(180),
+      lat: z.number().min(-85).max(85),
+      level: z.number().int().min(7).max(24),
+      requestId: uuid,
+    })
+    .parse(req.body);
+  res.json(
+    await inspectTree(res.locals.user.id, uuid.parse(req.params.id), input),
+  );
+  await changed();
+});
+app.post("/api/territories/:id/harvest", authenticate, async (req, res) => {
+  const input = z
+    .object({ nodeId: z.string().max(128), requestId: uuid })
+    .parse(req.body);
+  const result = await harvest(
+    res.locals.user.id,
+    uuid.parse(req.params.id),
+    input.nodeId,
+    input.requestId,
+  );
+  await changed();
+  res.json(result);
+});
+app.post("/api/dev/time", authenticate, async (req, res) => {
+  const { days } = z
+    .object({ days: z.number().min(1).max(30) })
+    .parse(req.body);
+  res.json(await advanceClock(days));
+  await changed();
 });
 app.post("/api/territories/:id/build", authenticate, async (req, res) => {
   const data = z

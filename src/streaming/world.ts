@@ -1,3 +1,4 @@
+import { EnvironmentRenderer } from "../environment/renderer.ts";
 import { BudgetCache } from './cache.ts';
 import { desiredLevel, selectRequests, type View } from './selection.ts';
 import { CACHE_BYTES, CHUNK_SIZE, CHUNK_PADDING, LEVELS, WORLD_WIDTH, WORLD_HEIGHT, WORLD_SEED, createProjection, keyOf, stepAt, type ChunkKey } from '../world/config.ts';
@@ -22,6 +23,7 @@ export function validateManifest(data:GeographyManifest):void {
   }
 }
 export class ChunkWorld implements World {
+  readonly environment=new EnvironmentRenderer();
   readonly width=WORLD_WIDTH;
   readonly height=WORLD_HEIGHT;
   readonly seed=WORLD_SEED;
@@ -62,7 +64,7 @@ export class ChunkWorld implements World {
     if(!this.initialized || this.disposed)return;
     const requested=new Map<string,ChunkKey>(this.overview.map(key=>[keyOf(key),key]));
     for(const key of selectRequests(view,this.level)) {
-      if(requested.size>=72)break;
+      if(requested.size>=64)break;
       requested.set(keyOf(key),key);
     }
     const signature=[...requested.keys()].join('|');
@@ -91,8 +93,9 @@ export class ChunkWorld implements World {
       }
     } else if(!this.wanted.has(id)) {reply.bitmap.close();this.metrics.dropped++;}
     else {
-      const bytes=reply.bitmap.width*reply.bitmap.height*4+reply.terrain.byteLength+reply.biomes.byteLength+reply.elevation.byteLength+reply.moisture.byteLength;
-      this.cache.set(id,{key:reply.key,bitmap:reply.bitmap,terrain:reply.terrain,biomes:reply.biomes,elevation:reply.elevation,moisture:reply.moisture,generationMs:reply.generationMs,bytes});
+      if(reply.environment)this.environment.put(reply.environment);
+      const bytes=(reply.environment?.bytes??0)+reply.bitmap.width*reply.bitmap.height*4+reply.terrain.byteLength+reply.biomes.byteLength+reply.elevation.byteLength+reply.moisture.byteLength;
+      this.cache.set(id,{key:reply.key,bitmap:reply.bitmap,environment:reply.environment,terrain:reply.terrain,biomes:reply.biomes,elevation:reply.elevation,moisture:reply.moisture,generationMs:reply.generationMs,bytes});
       this.metrics.generated++;this.metrics.lastGenerationMs=reply.generationMs;
       if(!this.initialized && this.overview.every(key=>this.cache.peek(keyOf(key)))) {this.initialized=true;this.resolveReady();}
       this.changed();
@@ -122,6 +125,6 @@ export class ChunkWorld implements World {
   }
   dispose():void {
     if(!this.initialized)this.rejectReady(new Error('World disposed'));
-    this.disposed=true;clearTimeout(this.timeout);this.worker.terminate();this.active=undefined;this.cache.clear();
+    this.disposed=true;clearTimeout(this.timeout);this.worker.terminate();this.active=undefined;this.cache.clear();this.environment.dispose();
   }
 }

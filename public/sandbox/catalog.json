@@ -1,0 +1,595 @@
+{
+  "version": 1,
+  "season": "spring",
+  "sources": {
+    "trees": {
+      "path": "data/sandbox-pack/trees.png",
+      "sha256": "9664099b3018e9e8426d667ef02c4729ccfcb5415c6e8aaaf2720682921f4ec6",
+      "width": 1536,
+      "height": 1024
+    },
+    "rocks": {
+      "path": "data/sandbox-pack/rocks.png",
+      "sha256": "4e528adfa6f8a8329890d080e849ff627729f1390f44788c37952457f93350bb",
+      "width": 1536,
+      "height": 1024
+    }
+  },
+  "assets": {
+    "oak": {
+      "id": "oak",
+      "type": "Tree",
+      "biomes": [
+        2,
+        6
+      ],
+      "width": 135,
+      "height": 160,
+      "crop": [
+        16,
+        11,
+        135,
+        160
+      ],
+      "source": "trees",
+      "pivot": [
+        67,
+        159
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": true,
+      "mirror": false,
+      "sha256": "010760f7ac53ecd69f285ba1b95e77015a007c70c335ad3a151d0833e83f9bcf"
+    },
+    "birch": {
+      "id": "birch",
+      "type": "Tree",
+      "biomes": [
+        2
+      ],
+      "width": 92,
+      "height": 141,
+      "crop": [
+        800,
+        189,
+        92,
+        141
+      ],
+      "source": "trees",
+      "pivot": [
+        46,
+        140
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": true,
+      "mirror": false,
+      "sha256": "6ea3813d0d42ff6d944c79cc7d1da05609ba73868ff99a68a11902d9873f41e1"
+    },
+    "conifer": {
+      "id": "conifer",
+      "type": "Tree",
+      "biomes": [
+        3,
+        8
+      ],
+      "width": 117,
+      "height": 131,
+      "crop": [
+        123,
+        339,
+        117,
+        131
+      ],
+      "source": "trees",
+      "pivot": [
+        58,
+        130
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": true,
+      "mirror": false,
+      "sha256": "4b6eb11260893b217da9d0dc78b97286df88efc404aad6d6f2ecb0ade795bd3b"
+    },
+    "snowConifer": {
+      "id": "snowConifer",
+      "type": "Tree",
+      "biomes": [
+        3,
+        8
+      ],
+      "width": 103,
+      "height": 132,
+      "crop": [
+        357,
+        338,
+        103,
+        132
+      ],
+      "source": "trees",
+      "pivot": [
+        51,
+        131
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": true,
+      "mirror": false,
+      "sha256": "0e207ff8d2a4a0966eba2139419238b109dde7a9577c05db72d909ba90bc157e"
+    },
+    "tropical": {
+      "id": "tropical",
+      "type": "Tree",
+      "biomes": [
+        1
+      ],
+      "width": 188,
+      "height": 174,
+      "crop": [
+        651,
+        724,
+        188,
+        174
+      ],
+      "source": "trees",
+      "pivot": [
+        94,
+        173
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": true,
+      "mirror": false,
+      "sha256": "475bc17639a190d8fb84be18a1e4c10f85e3d9972efeb763e303334100b2df4f"
+    },
+    "savanna": {
+      "id": "savanna",
+      "type": "Tree",
+      "biomes": [
+        4
+      ],
+      "width": 178,
+      "height": 157,
+      "crop": [
+        576,
+        547,
+        178,
+        157
+      ],
+      "source": "trees",
+      "pivot": [
+        89,
+        156
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": true,
+      "mirror": false,
+      "sha256": "c50413c72c03240c7460df04fad24a7f85c9b2ebbfdee2000d93fde41a417018"
+    },
+    "coconut": {
+      "id": "coconut",
+      "type": "Tree",
+      "biomes": [
+        1,
+        5
+      ],
+      "width": 134,
+      "height": 160,
+      "crop": [
+        880,
+        353,
+        134,
+        160
+      ],
+      "source": "trees",
+      "pivot": [
+        67,
+        159
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": true,
+      "mirror": false,
+      "sha256": "db70f2b6bd53b891072b2815fbbcce446a553ef4d75609d803c83e3a7f1107dd"
+    },
+    "youngOak": {
+      "id": "youngOak",
+      "type": "Tree",
+      "biomes": [
+        2,
+        6
+      ],
+      "width": 62,
+      "height": 72,
+      "crop": [
+        133,
+        119,
+        62,
+        72
+      ],
+      "source": "trees",
+      "pivot": [
+        31,
+        71
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": true,
+      "mirror": false,
+      "sha256": "379f8455849e9d489198e862d9e1c80b4bdbdc3e18ae026cee69792c4260c5cf"
+    },
+    "bush": {
+      "id": "bush",
+      "type": "Bush",
+      "biomes": [
+        1,
+        2,
+        4,
+        6
+      ],
+      "width": 51,
+      "height": 49,
+      "crop": [
+        20,
+        901,
+        51,
+        49
+      ],
+      "source": "trees",
+      "pivot": [
+        25,
+        48
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": false,
+      "mirror": false,
+      "sha256": "e943041da15c612d953977c5fef6a589508e13b45130a396198f5670f0b8c4e8"
+    },
+    "flowers": {
+      "id": "flowers",
+      "type": "Flower",
+      "biomes": [
+        1,
+        2,
+        6
+      ],
+      "width": 70,
+      "height": 52,
+      "crop": [
+        772,
+        901,
+        70,
+        52
+      ],
+      "source": "trees",
+      "pivot": [
+        35,
+        51
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": false,
+      "harvestable": false,
+      "mirror": false,
+      "sha256": "da133d477154e8c04385b94df8c0fd372007aa3b28afa969092fb2106ecd7658"
+    },
+    "log": {
+      "id": "log",
+      "type": "Log",
+      "biomes": [
+        1,
+        2,
+        3,
+        4,
+        6
+      ],
+      "width": 63,
+      "height": 46,
+      "crop": [
+        881,
+        901,
+        63,
+        46
+      ],
+      "source": "trees",
+      "pivot": [
+        31,
+        45
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": false,
+      "mirror": false,
+      "sha256": "903abc99737809a7656dadf45be472bb6cbc653df88cafb9b4a8513bec1a6358"
+    },
+    "cutStump": {
+      "id": "cutStump",
+      "type": "Stump",
+      "biomes": [
+        1,
+        2,
+        3,
+        4,
+        6
+      ],
+      "width": 50,
+      "height": 45,
+      "crop": [
+        950,
+        906,
+        50,
+        45
+      ],
+      "source": "trees",
+      "pivot": [
+        25,
+        44
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": false,
+      "mirror": false,
+      "sha256": "5a8cf7ab7e701074b6a05ae3a0e4c9db0aeb926712519dc3f9aa0c6d08e04247"
+    },
+    "branch": {
+      "id": "branch",
+      "type": "Log",
+      "biomes": [
+        1,
+        2,
+        3,
+        6
+      ],
+      "width": 53,
+      "height": 39,
+      "crop": [
+        1173,
+        963,
+        53,
+        39
+      ],
+      "source": "trees",
+      "pivot": [
+        26,
+        38
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": false,
+      "mirror": false,
+      "sha256": "1e23d105b1b2f91dd6eb2b8d1f7055bc512012572e2ad9a436e0cdd8b7398c9d"
+    },
+    "stone": {
+      "id": "stone",
+      "type": "Rock",
+      "biomes": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "width": 71,
+      "height": 69,
+      "crop": [
+        429,
+        69,
+        71,
+        69
+      ],
+      "source": "rocks",
+      "pivot": [
+        35,
+        68
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": true,
+      "mirror": false,
+      "sha256": "519ba5b2eb9534b08c121f093210a9743d66dfcefb26f34e70191a8ace12a3c1"
+    },
+    "sandstone": {
+      "id": "sandstone",
+      "type": "Rock",
+      "biomes": [
+        4,
+        5
+      ],
+      "width": 61,
+      "height": 58,
+      "crop": [
+        331,
+        350,
+        61,
+        58
+      ],
+      "source": "rocks",
+      "pivot": [
+        30,
+        57
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": true,
+      "mirror": false,
+      "sha256": "2e48dbada0b04070f872eb045d45c6cdf5b2dc300b93c580d4b6ea261730e9ed"
+    },
+    "iron": {
+      "id": "iron",
+      "type": "Ore",
+      "biomes": [
+        3,
+        8
+      ],
+      "width": 93,
+      "height": 78,
+      "crop": [
+        13,
+        610,
+        93,
+        78
+      ],
+      "source": "rocks",
+      "pivot": [
+        46,
+        77
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": true,
+      "mirror": false,
+      "sha256": "d760b853a4b0d68cff34a108e52e050cf769991c76fd14282016aa7dd463caaf"
+    },
+    "copper": {
+      "id": "copper",
+      "type": "Ore",
+      "biomes": [
+        4,
+        5,
+        8
+      ],
+      "width": 94,
+      "height": 73,
+      "crop": [
+        399,
+        611,
+        94,
+        73
+      ],
+      "source": "rocks",
+      "pivot": [
+        47,
+        72
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": true,
+      "mirror": false,
+      "sha256": "296469bfdce296c5a9124daeac93942ebf0d9c77472015f300cf092613eb8ba8"
+    },
+    "coal": {
+      "id": "coal",
+      "type": "Ore",
+      "biomes": [
+        2,
+        3,
+        8
+      ],
+      "width": 92,
+      "height": 56,
+      "crop": [
+        651,
+        800,
+        92,
+        56
+      ],
+      "source": "rocks",
+      "pivot": [
+        46,
+        55
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": true,
+      "mirror": false,
+      "sha256": "94c566ddcf8ad72db6cbb3e8be2ad6d2f601ec8e19ede287604a97295930d5c3"
+    },
+    "crystal": {
+      "id": "crystal",
+      "type": "Crystal",
+      "biomes": [
+        8
+      ],
+      "width": 45,
+      "height": 62,
+      "crop": [
+        209,
+        699,
+        45,
+        62
+      ],
+      "source": "rocks",
+      "pivot": [
+        22,
+        61
+      ],
+      "rarity": 0.02,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": true,
+      "mirror": false,
+      "sha256": "dc5a051c0222a433fb3a7bab5808f5cf45ae1b65dd8a0143698fa41ff3902ddd"
+    },
+    "ice": {
+      "id": "ice",
+      "type": "Ice",
+      "biomes": [
+        7,
+        9
+      ],
+      "width": 87,
+      "height": 76,
+      "crop": [
+        649,
+        427,
+        87,
+        76
+      ],
+      "source": "rocks",
+      "pivot": [
+        43,
+        75
+      ],
+      "rarity": 1,
+      "season": "spring",
+      "variants": [],
+      "collision": true,
+      "harvestable": false,
+      "mirror": false,
+      "sha256": "17f0b50efb4223f57926220fa064c0ff05ac6bcc39be31065c9a131ea6894275"
+    }
+  }
+}

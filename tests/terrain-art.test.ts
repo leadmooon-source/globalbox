@@ -130,7 +130,7 @@ test("Natural Earth Mercator masks preserve land, inland water and tile gutters"
 
 test("deep-zoom requests fit the bitmap cache including ancestors and retain global coverage", async () => {
   const { terrainRequests } = await import("../src/terrain/selection.ts");
-  for (const zoom of [0, 2, 4, 8, 12, 19])
+  for (const zoom of [0, 2, 4, 8, 12, 19, 24])
     for (const aspect of [1, 4, 10]) {
       const span = 180 / 2 ** zoom;
       const plan = terrainRequests({

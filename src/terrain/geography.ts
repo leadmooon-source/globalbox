@@ -35,7 +35,10 @@ export const mercatorInverse = (x: number, y: number): [number, number] => [
   (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI,
 ];
 /** Keep original rings and holes. Only projection/rasterization changes between LODs. */
-export function prepareVectors(collection: FeatureCollection): VectorShape[] {
+export function prepareVectors(
+  collection: FeatureCollection,
+  makePath: (svg: string) => Path2D = (svg) => new Path2D(svg),
+): VectorShape[] {
   const projection = geoMercator()
     .scale(1 / (2 * Math.PI))
     .translate([0.5, 0.5])
@@ -68,7 +71,7 @@ export function prepareVectors(collection: FeatureCollection): VectorShape[] {
           bounds[1][1] - bounds[0][1],
         );
         result.push({
-          path: new Path2D(s),
+          path: makePath(s),
           bounds,
           rank: Number(
             f.properties?.scalerank ??
@@ -80,14 +83,19 @@ export function prepareVectors(collection: FeatureCollection): VectorShape[] {
   }
   return result;
 }
-export function rasterRegion(key: TileKey, vectors: TerrainVectors): Region {
+export function rasterRegion(
+  key: TileKey,
+  vectors: TerrainVectors,
+  makeCanvas: (w: number, h: number) => OffscreenCanvas = (w, h) =>
+    new OffscreenCanvas(w, h),
+): Region {
   const width = 320,
     pad = 32,
     size = 256,
     scale = size * 2 ** key.z,
     ox = key.x * size - pad,
     oy = key.y * size - pad;
-  const canvas = new OffscreenCanvas(width, width),
+  const canvas = makeCanvas(width, width),
     c = canvas.getContext("2d", { willReadFrequently: true })!;
   c.imageSmoothingEnabled = false;
   c.setTransform(scale, 0, 0, scale, -ox, -oy);
@@ -126,6 +134,7 @@ export function rasterRegion(key: TileKey, vectors: TerrainVectors): Region {
     originY: oy,
     step: 1,
     seed: WORLD_SEED,
+    mercatorLevel: key.z,
     terrain: new Uint8Array(len),
     biomes: new Uint8Array(len),
     elevation: new Float32Array(len),

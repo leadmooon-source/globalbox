@@ -53,7 +53,7 @@ export function characterFrame(
   const art = CHARACTER_ART[characterArt(profession)];
   if (!time || task === "Resting" || task === "Eating") return art.idle;
   const frames =
-    task === "Walking" || task === "Exploring" ? art.walk : art.work;
+    task === "Walking" || task === "Transporting" || task === "Exploring" ? art.walk : art.work;
   const offset = [...id].reduce((sum, c) => sum + c.charCodeAt(0), 0);
   return frames[
     (Math.floor(time / (task === "Walking" ? 180 : 360)) + offset) %

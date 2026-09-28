@@ -1,3 +1,4 @@
+import type { EnvironmentTile } from "../environment/tile.ts";
 import type { ChunkKey } from './config.ts';
 export { WORLD_WIDTH, WORLD_HEIGHT, WORLD_SEED } from './config.ts';
 export const Biome = {
@@ -33,6 +34,8 @@ export interface Region {
   elevation: Float32Array;
   moisture: Float32Array;
   coastDistance: Uint16Array;
+  /** Projection adapter for procedural details; absent means Equal Earth. */
+  mercatorLevel?: number;
 }
 export interface ChunkCells {
   terrain: Uint8Array;
@@ -52,6 +55,7 @@ export interface GeographyManifest {
   chunks: Record<string, GeographicEntry>;
 }
 export interface WorldChunk extends ChunkCells {
+  environment?: EnvironmentTile;
   key: ChunkKey;
   bitmap: ImageBitmap;
   bytes: number;
@@ -59,9 +63,9 @@ export interface WorldChunk extends ChunkCells {
 }
 export interface GenerateRequest { id: number; key: ChunkKey; entry: GeographicEntry; baseUrl: string; seed: number }
 export type GenerateReply =
-  | ({ type: 'ready'; id: number; key: ChunkKey; bitmap: ImageBitmap; generationMs: number } & ChunkCells)
+  | ({ type: 'ready'; id: number; key: ChunkKey; bitmap: ImageBitmap; environment?: EnvironmentTile; generationMs: number } & ChunkCells)
   | { type: 'error'; id: number; key: ChunkKey; message: string };
-export interface Plant { x: number; y: number; biome: BiomeId; variant: number }
+export interface Plant { id: string; x: number; y: number; biome: BiomeId; variant: number; asset: import("../environment/assets.ts").PlantAsset; width: number; height: number }
 export type Species = 'chicken' | 'pig' | 'cow' | 'deer' | 'elephant' | 'camel' | 'penguin';
 export interface Animal {
   id: number;

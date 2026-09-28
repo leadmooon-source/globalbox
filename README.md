@@ -103,3 +103,9 @@ Para oferecer dinheiro por uma terra: abra o território → **Negociar** → in
 - Solo e água são pré-renderizados: não há sorteio nem desenho de milhares de clusters a cada frame. A semente reproduz uma região após descarregá-la. Vegetação local transparente permite que a geografia permaneça visível também dentro das propriedades.
 
 Os limites de cache não incluem vetores, buffers temporários, memória do navegador/GPU ou outras camadas. O relevo e as faixas de profundidade são ilustração geograficamente orientada, não batimetria ou altimetria científica. O detalhe aumenta por LOD; após a resolução máxima do atlas (128×), a câmera não inventa nova geografia.
+
+## Mundo vivo — vegetação, água e clima
+
+O atlas e o mapa principal compartilham agora vegetação procedural com os assets oficiais de `Farm RPG FREE 16x16 - Tiny Asset Pack.rar`, árvores por bioma, água animada, rajadas, folhas, nuvens e chuva regional determinada por UTC. O fallback Canvas usa as mesmas camadas ambientais. Movimento reduzido mantém uma composição estática.
+
+Catálogo, proveniência, regras de posicionamento, limites de memória e ferramentas de verificação: [docs/world-life.md](docs/world-life.md). Recrie os assets derivados com `npm run world-life:prepare`.

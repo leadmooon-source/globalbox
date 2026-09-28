@@ -50,7 +50,6 @@ export interface SurfaceOptions {
   padding?: number;
   detail?: number;
   vegetation?: boolean;
-  trees?: { x: number; y: number; b: number }[];
 }
 /** 2× visual raster independent of the simulation grid. Never writes geographic arrays. */
 export function renderSurface(
@@ -60,7 +59,6 @@ export function renderSurface(
     padding = 32,
     detail = 0,
     vegetation = false,
-    trees,
   }: SurfaceOptions = {},
 ) {
   const n = size * 2,
@@ -252,16 +250,10 @@ export function renderSurface(
       if (kind === "RockCluster")
         colors = [rgb("#b2ba97"), rgb("#828d79"), rgb("#566b5c")];
       
-      const isTree = trees && (kind === "GrassCluster" || kind === "DryGrassCluster" || kind === "LeafCluster");
-      if (isTree) {
-        trees!.push({ x, y, b });
-      } else {
-        stamp(kind, x, y, colors, t);
-      }
+      stamp(kind, x, y, colors, t);
 
-      if (vegetation && detail >= 2 && r < 0.17 && [1, 2, 3].includes(b)) {
-        if (trees) trees.push({ x: x + 5, y: y - 6, b });
-        else stamp("CanopyCluster", x + 5, y - 6, [p[3], p[1], p[0]], t);
+      if (vegetation && r < 0.24 && [1, 2, 3].includes(b)) {
+        stamp("CanopyCluster", x + 5, y - 6, [p[3], p[1], p[0]], t);
       }
     }
   return pixels;

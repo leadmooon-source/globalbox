@@ -1,594 +1,631 @@
+import { labelNature } from "../../shared/nature-labels.ts";
 import { createRoot } from "react-dom/client";
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import type { Polygon } from "geojson";
-import { area, polygon } from "@turf/turf";
+import { useEffect, useRef, useState } from "react";
+import type { Polygon, MultiPolygon } from "geojson";
 import { WorldMap, activeMap } from "./Map.tsx";
-import { Icon } from "./icons.tsx";
 import {
   api,
   type User,
   type Territory,
   type World,
-  type Listing,
-  type Offer,
   type Quote,
-  type Place,
 } from "./types.ts";
-import {
-  BUILDINGS,
-  RESOURCE_KINDS,
-  CROPS,
-  DEFAULT_PRICING,
-  estimatePrice,
-  money,
-  number,
-  type PricingConfig,
-  type BuildingKind,
-  type CropKind,
-  type ResourceKind,
-} from "../../shared/game.ts";
-import { useScreens } from "./screens.ts";
 import { visibleWorld, localRegions } from "./remote.ts";
 import { WORLD_BOUNDS, type ViewBounds } from "../../shared/contracts.ts";
-import type { Panel } from "./screens.ts";
-import { CHARACTER_ART, characterArt } from "./characters.ts";
+import { BUILDINGS, type BuildingKind } from "../../shared/game.ts";
+import { GAME_TIME, type NatureNode } from "../../shared/nature.ts";
+import { climateAt } from "../world/climate.ts";
 import "./ui.css";
-
+import "./sandbox.css";
 const empty: World = {
   territories: [],
   events: [],
   total: 0,
   players: 0,
-  state: { tick: 0, revision: 0 },
+  state: { tick: 0, revision: 0, gameTime: 0 },
 };
+const biomes = [
+  "Oceano",
+  "Floresta tropical",
+  "Floresta temperada",
+  "Taiga",
+  "Savana",
+  "Deserto",
+  "Campos",
+  "Tundra",
+  "Montanha",
+  "Gelo",
+];
+const fmt = (n: number) =>
+  new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(n);
 function App() {
-  const {
-    top,
-    panel,
-    setPanel,
-    auth,
-    setAuth,
-    layers,
-    setLayers,
-    person: personSnapshot,
-    setPerson,
-    confirmation,
-    setConfirmation,
-  } = useScreens();
-  const [bounds, setBounds] = useState<ViewBounds>(WORLD_BOUNDS),
-    [details, setDetails] = useState<Territory[]>([]),
-    [resourceLayer, setResourceLayer] = useState(false),
-    [collapsed, setCollapsed] = useState(false),
-    [textScale, setTextScale] = useState(
-      () => Number(localStorage.getItem("gt-text-scale")) || 1,
-    );
-  const view = useRef(bounds);
-  view.current = bounds;
-  const socketRef = useRef<WebSocket | null>(null);
-  const refreshSerial = useRef(0);
-  useEffect(() => {
-    document.documentElement.style.setProperty(
-      "--text-scale",
-      String(textScale),
-    );
-    localStorage.setItem("gt-text-scale", String(textScale));
-  }, [textScale]);
-
-  const [world, setWorld] = useState<World>(empty),
+  const [world, setWorld] = useState(empty),
     [user, setUser] = useState<User | null>(null),
+    [details, setDetails] = useState<Territory[]>([]),
     [selected, setSelected] = useState<Territory | null>(null),
-    [tab, setTab] = useState("overview"),
-    [drawing, setDrawing] = useState(false),
-    [draft, setDraft] = useState<Polygon | null>(null),
-    [liveArea, setLiveArea] = useState(0),
+    [bounds, setBounds] = useState<ViewBounds>(WORLD_BOUNDS);
+  const [drawing, setDrawing] = useState(false),
+    [draft, setDraft] = useState<Polygon | MultiPolygon | null>(null),
     [quote, setQuote] = useState<Quote | null>(null),
-    [pricing, setPricing] = useState<PricingConfig>(DEFAULT_PRICING),
-    [name, setName] = useState("Minha nova terra"),
-    [register, setRegister] = useState(true),
+    [area, setArea] = useState(0),
+    [placing, setPlacing] = useState<BuildingKind | null>(null);
+  const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [notice, setNotice] = useState(""),
-    [connected, setConnected] = useState(false),
-    [ready, setReady] = useState(false),
-    [market, setMarket] = useState<Listing[]>([]),
-    [offers, setOffers] = useState<Offer[]>([]),
-    [owned, setOwned] = useState<Territory[]>([]),
-    [political, setPolitical] = useState(true),
-    [terrain, setTerrain] = useState(true),
-    [population, setPopulation] = useState(false),
+    [panel, setPanel] = useState<"auth" | "build" | "explore" | "stock" | null>(
+      null,
+    ),
+    [login, setLogin] = useState(false),
+    [name, setName] = useState("Meu refúgio");
+  const [inspectedObject, setInspectedObject] = useState<
+      { id: string; asset: string } | undefined
+    >(),
+    [inspectedLand, setInspectedLand] = useState(true);
+  const [inspection, setInspection] = useState<[number, number] | null>(null),
+    [nodeId, setNodeId] = useState<string | null>(null),
     [destination, setDestination] = useState<{
       center: [number, number];
       zoom: number;
       nonce: number;
-    } | null>(null),
-    [search, setSearch] = useState(""),
-    [places, setPlaces] = useState<Place[]>([]),
-    [placing, setPlacing] = useState<BuildingKind | null>(null),
-    [crop, setCrop] = useState<CropKind>("Wheat"),
-    [price, setPrice] = useState("12"),
-    [counter, setCounter] = useState<Record<string, string>>({}),
-    [profile, setProfile] = useState<{
-      username: string;
-      createdAt: string;
-      territories: Territory[];
-      tradingVolume: number;
-      trades: number;
     } | null>(null);
-  const person =
-    selected?.characters?.find((p) => p.id === personSnapshot?.id) ??
-    personSnapshot;
-  const latest = useRef({
-    selected,
-    user,
-    panel,
-    profileName: profile?.username,
-  });
-  latest.current = { selected, user, panel, profileName: profile?.username };
-  const requestSerial = useRef(0);
-  const mutation = useRef(false);
+  const current = useRef({ bounds, selected, user });
+  current.current = { bounds, selected, user };
+  const serial = useRef(0),
+    syncing = useRef(false);
   async function refresh() {
-    const serial = ++refreshSerial.current,
-      current = latest.current;
-    const w = await visibleWorld(view.current);
-    if (serial !== refreshSerial.current) return;
-    setWorld(w);
-    const m = activeMap;
-    const detailIds = m
-      ? w.territories
-          .filter((t) => {
-            const a = m.project([t.minLon, t.maxLat]),
-              b = m.project([t.maxLon, t.minLat]);
-            return (
-              b.x - a.x > 130 &&
-              b.x >= 0 &&
-              a.x <= m.getCanvas().clientWidth &&
-              b.y >= 0 &&
-              a.y <= m.getCanvas().clientHeight
-            );
-          })
-          .map((t) => t.id)
-          .slice(0, 24)
-      : [];
-    const local = await localRegions(detailIds);
-    if (serial !== refreshSerial.current) return;
-    setDetails(local);
-
-    if (current.selected) {
-      const t = await api<Territory>("/territories/" + current.selected.id);
-      if (
-        serial === refreshSerial.current &&
-        latest.current.selected?.id === t.id
-      )
-        setSelected(t);
-    }
-    if (current.user) {
-      const [me, lands, offers] = await Promise.all([
-        api<User>("/me"),
-        api<Territory[]>("/me/territories"),
-        api<Offer[]>("/me/offers"),
-      ]);
-      if (
-        serial === refreshSerial.current &&
-        latest.current.user?.id === current.user.id
-      ) {
-        setUser(me);
-        setOwned(lands);
-        setOffers(offers);
+    if (syncing.current) return;
+    syncing.current = true;
+    const version = ++serial.current;
+    try {
+      const state = current.current,
+        w = await visibleWorld(state.bounds);
+      const m = activeMap;
+      const ids = w.territories
+        .filter((t) => {
+          if (!m) return false;
+          const a = m.project([t.minLon, t.maxLat]),
+            b = m.project([t.maxLon, t.minLat]);
+          return b.x - a.x > 130;
+        })
+        .slice(0, 24)
+        .map((t) => t.id);
+      const local = ids.length ? await localRegions(ids) : [];
+      if (version !== serial.current) return;
+      setWorld(w);
+      setDetails(local);
+      if (state.selected) {
+        const t = await api<Territory>("/territories/" + state.selected.id);
+        if (current.current.selected?.id === t.id) setSelected(t);
       }
-    }
-    if (current.panel === "market") {
-      const listings = await api<Listing[]>("/market");
-      if (latest.current.panel === "market" && serial === refreshSerial.current)
-        setMarket(listings);
-    }
-    if (current.panel === "profile" && current.profileName) {
-      const next = await api<NonNullable<typeof profile>>(
-        "/profiles/" + current.profileName,
-      );
-      if (
-        serial === refreshSerial.current &&
-        latest.current.profileName === current.profileName
-      )
-        setProfile(next);
+      if (state.user) setUser(await api<User>("/me"));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      syncing.current = false;
     }
   }
-  async function run(action: () => Promise<void>) {
-    if (mutation.current) return;
-    mutation.current = true;
+  useEffect(() => {
+    void api<User>("/me")
+      .then(setUser)
+      .catch(() => {});
+    void refresh();
+    const timer = setInterval(() => {
+      if (!document.hidden) void refresh();
+    }, 3000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    const timer = setTimeout(() => void refresh(), 150);
+    return () => clearTimeout(timer);
+  }, [bounds]);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDrawing(false);
+        setDraft(null);
+        setQuote(null);
+        setPlacing(null);
+        setPanel(null);
+        setInspection(null);
+        setNodeId(null);
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
+  async function action(work: () => Promise<void>) {
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
-      await action();
-      await refresh();
+      await work();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível concluir.");
+      setError((e as Error).message);
     } finally {
-      mutation.current = false;
       setBusy(false);
     }
   }
-  useEffect(() => {
-    void refresh().catch((e) => setError(e.message));
-    void api<User>("/me")
-      .then((u) => {
-        setUser(u);
-        return Promise.all([
-          api<Territory[]>("/me/territories").then(setOwned),
-          api<Offer[]>("/me/offers").then(setOffers),
-        ]);
-      })
-      .catch(() => {});
-    void api<{ pricing: PricingConfig }>("/config")
-      .then((c) => setPricing(c.pricing))
-      .catch((e) => setError(e.message));
-    let ws: WebSocket,
-      retry: ReturnType<typeof setTimeout>,
-      update: ReturnType<typeof setTimeout>,
-      stopped = false,
-      inFlight = false;
-    const sync = async () => {
-      if (inFlight || stopped) return;
-      inFlight = true;
-      try {
-        await refresh();
-      } catch {
-        setConnected(false);
-      } finally {
-        inFlight = false;
-      }
-    };
-    function connect() {
-      ws = new WebSocket(
-        `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`,
-      );
-      socketRef.current = ws;
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "subscribe", bounds: view.current }));
-        setConnected(true);
-        void sync();
-      };
-      ws.onmessage = () => {
-        clearTimeout(update);
-        update = setTimeout(() => void sync(), 150);
-      };
-      ws.onerror = () => ws.close();
-      ws.onclose = () => {
-        setConnected(false);
-        if (!stopped) retry = setTimeout(connect, 2000);
-      };
-    }
-    connect();
-    const route = () => {
-      const match = location.pathname.match(/^\/@([a-z0-9_]+)$/);
-      if (match) void showProfile(match[1], false);
-    };
-    route();
-    window.addEventListener("popstate", route);
-    return () => {
-      stopped = true;
-      clearTimeout(retry);
-      clearTimeout(update);
-      ws.close();
-      window.removeEventListener("popstate", route);
-    };
-  }, []);
-  useEffect(() => {
-    if (socketRef.current?.readyState === WebSocket.OPEN)
-      socketRef.current.send(JSON.stringify({ type: "subscribe", bounds }));
-    const timeout = setTimeout(
-      () => void refresh().catch((e) => setError(e.message)),
-      120,
-    );
-    return () => clearTimeout(timeout);
-  }, [bounds]);
-  useEffect(() => {
-    if (search.length < 2) {
-      setPlaces([]);
-      return;
-    }
-    const timeout = setTimeout(
-      () =>
-        void api<Place[]>("/search?q=" + encodeURIComponent(search))
-          .then(setPlaces)
-          .catch(() => {}),
-      250,
-    );
-    return () => clearTimeout(timeout);
-  }, [search]);
-  useEffect(() => {
-    if (!notice) return;
-    const timer = setTimeout(() => setNotice(""), 6000);
-    return () => clearTimeout(timer);
-  }, [notice]);
-  useEffect(() => {
-    if (panel === "market")
-      void api<Listing[]>("/market")
-        .then(setMarket)
-        .catch((e) => setError(e.message));
-  }, [panel]);
-  const my = !!selected && selected.ownerId === user?.id;
-  function fly(t: Territory, zoom?: number) {
-    const lon = (t.minLon + t.maxLon) / 2,
-      lat = (t.minLat + t.maxLat) / 2,
-      span = Math.max(
-        t.maxLon - t.minLon,
-        (t.maxLat - t.minLat) / Math.cos((lat * Math.PI) / 180),
-      );
-    const target = Math.max(
-      200,
-      Math.min(
-        innerWidth > 760 ? innerWidth - 600 : innerWidth - 40,
-        innerHeight - 220,
-      ) * 0.85,
-    );
-    setDestination({
-      center: [
-        lon + (innerWidth > 760 ? (t.maxLon - t.minLon) * 0.25 : 0),
-        lat - (innerWidth <= 760 ? (t.maxLat - t.minLat) * 0.65 : 0),
-      ],
-      zoom:
-        zoom ??
-        Math.max(9, Math.min(17, Math.log2(((360 / span) * target) / 512))),
-      nonce: Date.now(),
+  async function select(id: string) {
+    await action(async () => {
+      const t = await api<Territory>("/territories/" + id);
+      setSelected(t);
+      setInspection(null);
+      setNodeId(null);
+      setPanel(null);
     });
   }
-  async function select(id: string, move = false) {
-    const serial = ++requestSerial.current;
-    try {
-      const t = await api<Territory>("/territories/" + id);
-      if (serial !== requestSerial.current) return;
-      setSelected(t);
-      setPanel(null);
-      setTab("overview");
-      setPerson(null);
-      setPlacing(null);
-      setDrawing(false);
-      if (move) fly(t);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-  async function showProfile(username: string, push = true) {
-    try {
-      const p = await api<NonNullable<typeof profile>>("/profiles/" + username);
-      setProfile(p);
-      setPanel("profile");
-      if (push) history.pushState({}, "", `/@${username}`);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-  function togglePanel(value: Panel) {
-    setPanel(panel === value ? null : value);
-    setDrawing(false);
-    setPlacing(null);
-    if (location.pathname !== "/") history.pushState({}, "", "/");
-  }
-  function beginDraw() {
-    if ((activeMap?.getZoom() ?? 0) < 8) {
-      setNotice(
-        "Aproxime uma região de terra firme para desenhar sua fronteira.",
-      );
-      setDestination({ center: [-47.65, -22.5], zoom: 12, nonce: Date.now() });
-      return;
-    }
-
+  function acquire() {
     if (!user) {
-      setAuth(true);
+      setPanel("auth");
       return;
     }
     setDrawing(true);
     setDraft(null);
     setQuote(null);
     setSelected(null);
+    setNodeId(null);
+    setInspection(null);
     setPanel(null);
-    setLiveArea(0);
-    setPlacing(null);
     setError("");
+    setArea(0);
   }
-  async function finishDraw(geometry: Polygon) {
+  async function drawn(geometry: Polygon) {
     setDrawing(false);
     setDraft(geometry);
-    setLiveArea(area(polygon(geometry.coordinates)) / 1e6);
-    await run(async () => {
+    await action(async () => {
       const q = await api<Quote>("/territories/quote", { geometry });
       setQuote(q);
       setDraft(q.geometry);
     });
   }
-  async function authenticate(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    await run(async () => {
-      const u = await api<User>("/auth/" + (register ? "register" : "login"), {
-        username: form.get("username"),
-        password: form.get("password"),
+  async function purchase() {
+    if (!quote) return;
+    await action(async () => {
+      const t = await api<Territory>("/territories/claim", {
+        quoteId: quote.id,
+        name,
       });
-      setUser(u);
-      latest.current.user = u;
-      setAuth(false);
-      setNotice(
-        register
-          ? "Seu mundo começa aqui. Você recebeu R$ 100 em saldo fictício."
-          : "Bem-vindo de volta.",
-      );
+      setSelected(t);
+      setQuote(null);
+      setDraft(null);
+      setDetails((d) => [...d.filter((d) => d.id !== t.id), t]);
+      setWorld((w) => ({
+        ...w,
+        territories: [...w.territories.filter((d) => d.id !== t.id), t],
+      }));
+      setUser(await api<User>("/me"));
     });
   }
-  function requireLogin() {
-    if (!user) {
-      setAuth(true);
-      return false;
-    }
-    return true;
-  }
-  function buy(l: Listing) {
-    if (!requireLogin()) return;
-    const requestId = crypto.randomUUID();
-    setConfirmation({
-      title: "Comprar território",
-      text: `Transferir ${l.territory?.name ?? selected?.name} por ${money(l.priceCents)} de saldo fictício?`,
-      action: async () => {
-        await api("/market/" + l.id + "/buy", { requestId });
-        setConfirmation(null);
-        setNotice("Compra simulada concluída. O território agora é seu.");
-        await select(l.territoryId, true);
-      },
-    });
-  }
-  async function order(
-    kind: BuildingKind,
-    position?: { x: number; y: number },
-  ) {
-    if (!selected) return;
-    await run(async () => {
+  async function place(x: number, y: number) {
+    if (!selected || !placing) return;
+    await action(async () => {
       await api("/territories/" + selected.id + "/build", {
-        type: kind,
-        position,
-        crop,
         requestId: crypto.randomUUID(),
+        type: placing,
+        position: { x, y },
       });
       setPlacing(null);
-      setNotice("Ordem recebida. Os construtores estão a caminho.");
+      await refresh();
     });
   }
-  function priceCents(value: string) {
-    const n = Math.round(Number(value.replace(",", ".")) * 100);
-    if (!Number.isSafeInteger(n) || n <= 0)
-      throw Error("Informe um valor maior que zero.");
-    return n;
+  const node = selected?.nature?.nodes.find((n) => n.id === nodeId),
+    owned = !!user && selected?.ownerId === user.id;
+  const climate = inspection ? climateAt(...inspection) : null;
+  function onNode(t: Territory, n: NatureNode) {
+    setSelected(t);
+    setNodeId(n.id);
+    setInspection(null);
+    setPanel(null);
   }
-  const resources = owned.flatMap((t) => t.resources ?? []);
-  const totalPeople = owned.reduce(
-    (n, t) => n + (t.characters?.length ?? 0),
-    0,
-  );
   return (
-    <div className="app panel-collapsed">
+    <div className="app panel-collapsed sandbox">
       <WorldMap
         territories={world.territories}
         details={details}
-        resources={resourceLayer}
-        blocked={false}
+        resources={false}
+        blocked={panel === "auth"}
         onView={setBounds}
         selected={selected}
-        drawing={false}
-        draft={null}
-        ownerId={undefined}
+        drawing={drawing}
+        draft={draft}
+        ownerId={user?.id}
         destination={destination}
-        political={political}
-        terrain={terrain}
-        population={population}
-        placing={null}
-        onSelect={(id) => void select(id, true)}
-        onDraw={() => {}}
-        onArea={() => {}}
-        onPlace={() => {}}
-        onPerson={() => {}}
-        onReady={() => setReady(true)}
+        political
+        terrain
+        population={false}
+        placing={placing}
+        gameTime={world.state.gameTime ?? 0}
+        onSelect={(id) => void select(id)}
+        onDraw={(g) => void drawn(g)}
+        onArea={setArea}
+        onPlace={(x, y) => void place(x, y)}
+        onPerson={(p) =>
+          setError(
+            `${p.name} · ${p.profession} · ${p.task} · energia ${Math.round(p.energy)}%`,
+          )
+        }
+        onInspect={(p, object, land) => {
+          setInspectedObject(object);
+          setInspectedLand(!!land);
+          setInspection(p);
+          setNodeId(null);
+          setSelected(null);
+          setPanel(null);
+        }}
+        onNode={onNode}
+        onDiscoverTree={(t, hit) =>
+          void action(async () => {
+            const n = await api<NatureNode>("/territories/" + t.id + "/tree", {
+              sourceId: hit.id,
+              lon: hit.lon,
+              lat: hit.lat,
+              level: hit.level,
+              requestId: crypto.randomUUID(),
+            });
+            const next = await api<Territory>("/territories/" + t.id);
+            setDetails((list) => [...list.filter((d) => d.id !== t.id), next]);
+            onNode(next, n);
+          })
+        }
+        onReady={() => {}}
         onError={setError}
       />
+      <header className="world-hud">
+        <strong>
+          ◈ GLOBALBOX <small>um mundo em movimento</small>
+        </strong>
+        <span>
+          Dia {Math.floor((world.state.gameTime ?? 0) / GAME_TIME.day) + 1}
+        </span>
+        <button
+          onClick={() =>
+            user
+              ? setPanel(panel === "stock" ? null : "stock")
+              : setPanel("auth")
+          }
+        >
+          {user ? `◉ ${fmt(user.money)} moedas` : "Entrar no mundo"}
+        </button>
+      </header>
+      <nav className="world-tools" aria-label="Ferramentas do mundo">
+        <button
+          title="Explorar destinos"
+          onClick={() => setPanel(panel === "explore" ? null : "explore")}
+        >
+          ◎ <span>Explorar</span>
+        </button>
+        <button
+          className={drawing ? "active" : ""}
+          onClick={acquire}
+          title="Desenhar uma área livre"
+        >
+          ⌁ <span>Adquirir território</span>
+        </button>
+        <button
+          disabled={!owned}
+          onClick={() => setPanel(panel === "build" ? null : "build")}
+          title="Construir no território selecionado"
+        >
+          ⌂ <span>Construir</span>
+        </button>
+        <button
+          disabled={!selected}
+          onClick={() => setPanel(panel === "stock" ? null : "stock")}
+          title="Estoques e história"
+        >
+          ▣ <span>Comunidade</span>
+        </button>
+      </nav>
+      {busy && (
+        <div className="world-message" role="status">
+          Preparando seu mundo…
+        </div>
+      )}
+      {error && (
+        <div className="world-message" role="status">
+          {error}
+          <button aria-label="Fechar mensagem" onClick={() => setError("")}>
+            ×
+          </button>
+        </div>
+      )}
+      {(drawing || placing) && (
+        <aside className="world-hint">
+          {drawing
+            ? `Desenhe sua fronteira · ${fmt(area)} km²`
+            : `Escolha o terreno para ${BUILDINGS[placing!].label}`}
+          <button
+            onClick={() => {
+              setDrawing(false);
+              setPlacing(null);
+            }}
+          >
+            Cancelar
+          </button>
+        </aside>
+      )}
+      {panel === "explore" && (
+        <aside className="world-card">
+          <h2>Escolha um lugar</h2>
+          <p>Explore, aproxime e toque no terreno.</p>
+          {(
+            [
+              ["Amazônia", -62, -5, 11],
+              ["Europa", 2, 48, 13],
+              ["Andes", -72, -15, 11],
+              ["Saara", 15, 25, 9],
+              ["Sibéria", 100, 60, 10],
+              ["Austrália", 133, -25, 9],
+              ["Groenlândia", -41, 75, 8],
+              ["Antártida", 0, -75, 6],
+            ] as [string, number, number, number][]
+          ).map(([label, lon, lat, zoom]) => (
+            <button
+              key={label}
+              onClick={() => {
+                setDestination({ center: [lon, lat], zoom, nonce: Date.now() });
+                setPanel(null);
+              }}
+            >
+              {label} ↗
+            </button>
+          ))}
+        </aside>
+      )}
+      {panel === "auth" && (
+        <aside className="world-card">
+          <h2>{login ? "Voltar ao mundo" : "Comece sua comunidade"}</h2>
+          <p>Uma carteira de moedas virtuais e um mundo para explorar.</p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const data = new FormData(e.currentTarget);
+              void action(async () => {
+                const u = await api<User>(
+                  "/auth/" + (login ? "login" : "register"),
+                  Object.fromEntries(data),
+                );
+                setUser(u);
+                setPanel(null);
+              });
+            }}
+          >
+            <label>
+              Nome
+              <input
+                name="username"
+                required
+                minLength={3}
+                maxLength={24}
+                autoComplete="username"
+                pattern="[a-z0-9_]+"
+              />
+            </label>
+            <label>
+              Senha
+              <input
+                name="password"
+                type="password"
+                required
+                minLength={8}
+                autoComplete={login ? "current-password" : "new-password"}
+              />
+            </label>
+            <button disabled={busy} className="primary">
+              {login ? "Entrar" : "Criar jogador"}
+            </button>
+          </form>
+          <button onClick={() => setLogin(!login)}>
+            {login ? "Criar uma conta" : "Já tenho uma conta"}
+          </button>
+          <button onClick={() => setPanel(null)}>Continuar explorando</button>
+        </aside>
+      )}
+      {quote && (
+        <aside className="world-card">
+          <h2>Um lugar para chamar de seu</h2>
+          <dl>
+            <dt>Área selecionada</dt>
+            <dd>{fmt(quote.totalAreaKm2 ?? quote.areaKm2)} km²</dd>
+            <dt>Ocupada</dt>
+            <dd>{fmt(quote.occupiedAreaKm2 ?? 0)} km²</dd>
+            <dt>Disponível para adquirir</dt>
+            <dd>{fmt(quote.areaKm2)} km²</dd>
+            <dt>Valor simulado</dt>
+            <dd>{fmt(quote.priceCents)} moedas</dd>
+          </dl>
+          <label>
+            Nome do território
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={48}
+            />
+          </label>
+          <button
+            className="primary"
+            disabled={
+              busy ||
+              name.trim().length < 2 ||
+              (user?.money ?? 0) < quote.priceCents
+            }
+            onClick={() => void purchase()}
+          >
+            Adquirir território
+          </button>
+          <button onClick={acquire}>Desenhar novamente</button>
+          <button
+            onClick={() => {
+              setQuote(null);
+              setDraft(null);
+            }}
+          >
+            Cancelar
+          </button>
+        </aside>
+      )}
+      {!quote && !drawing && !panel && inspection && climate && (
+        <aside className="world-card">
+          <h2>
+            {!inspectedLand
+              ? "Água"
+              : inspectedObject
+                ? `Árvore · ${labelNature(inspectedObject.asset)}`
+                : biomes[climate.biome]}
+          </h2>
+          <p>{inspection.map((v) => v.toFixed(3)).join(" · ")}</p>
+          <dl>
+            <dt>Relevo ilustrativo</dt>
+            <dd>{fmt(climate.elevation * 4000)} m</dd>
+            <dt>Umidade</dt>
+            <dd>{Math.round(climate.moisture * 100)}%</dd>
+            <dt>Vegetação</dt>
+            <dd>
+              {[0, 9, 7].includes(climate.biome)
+                ? "Ausente"
+                : climate.biome === 5
+                  ? "Rara"
+                  : climate.moisture > 0.6
+                    ? "Densa"
+                    : "Variável"}
+            </dd>
+          </dl>
+          {inspectedLand && (
+            <button onClick={acquire}>Desenhar território aqui</button>
+          )}
+          <button onClick={() => setInspection(null)}>Fechar</button>
+        </aside>
+      )}
+      {!quote && !drawing && !panel && selected && (
+        <aside className="world-card">
+          <h2>
+            {node
+              ? node.kind === "Tree"
+                ? "Árvore"
+                : labelNature(node.resource)
+              : selected.name}
+          </h2>
+          {node ? (
+            <>
+              <p>
+                {labelNature(node.asset)} · {labelNature(node.state)}
+                <br />
+                {node.kind === "Tree"
+                  ? `${Math.floor(node.age)} dias · saúde ${Math.round(node.health)}%`
+                  : `${node.quantity} unidades`}
+              </p>
+              {owned &&
+                node.harvestable &&
+                ["MATURE", "OLD", "AVAILABLE"].includes(node.state) &&
+                !selected.nature?.jobs.some((j) => j.nodeId === node.id) && (
+                  <button
+                    className="primary"
+                    disabled={busy}
+                    onClick={() =>
+                      void action(async () => {
+                        await api("/territories/" + selected.id + "/harvest", {
+                          nodeId: node.id,
+                          requestId: crypto.randomUUID(),
+                        });
+                        await refresh();
+                      })
+                    }
+                  >
+                    {node.kind === "Tree" ? "Cortar árvore" : "Extrair recurso"}
+                  </button>
+                )}
+              <button onClick={() => setNodeId(null)}>Ver território</button>
+            </>
+          ) : (
+            <>
+              <p>
+                @{selected.owner.username} · {fmt(selected.areaKm2)} km²
+              </p>
+              <p>
+                {selected.characters?.length ?? 0} habitantes ·{" "}
+                {selected.nature?.nodes.filter(
+                  (n) => n.kind === "Tree" && n.harvestable,
+                ).length ?? 0}{" "}
+                árvores adultas
+              </p>
+              {owned && (
+                <button onClick={() => setPanel("build")}>Construir</button>
+              )}
+              <button onClick={() => setPanel("stock")}>
+                Estoques e acontecimentos
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => {
+              setSelected(null);
+              setNodeId(null);
+            }}
+          >
+            Fechar
+          </button>
+        </aside>
+      )}
+      {panel === "build" && selected && owned && (
+        <aside className="world-card">
+          <h2>Construir em {selected.name}</h2>
+          <p>Escolha uma clareira dentro da fronteira.</p>
+          {(Object.keys(BUILDINGS) as BuildingKind[]).map((kind) => (
+            <button
+              key={kind}
+              onClick={() => {
+                setPlacing(kind);
+                setPanel(null);
+              }}
+            >
+              {BUILDINGS[kind].label}
+              <small>
+                {Object.entries(BUILDINGS[kind].cost)
+                  .map(([k, v]) => `${v} ${k}`)
+                  .join(" · ")}
+              </small>
+            </button>
+          ))}
+        </aside>
+      )}
+      {panel === "stock" && (
+        <aside className="world-card">
+          <h2>{selected?.name ?? "Sua comunidade"}</h2>
+          {selected?.resources?.map((r) => (
+            <p key={r.kind}>
+              {r.kind}{" "}
+              <b>
+                {Math.floor(r.amount)} / {r.capacity}
+              </b>
+            </p>
+          ))}
+          {selected?.characters?.map((p) => (
+            <small key={p.id}>
+              {p.name} · {labelNature(p.task)}
+            </small>
+          ))}
+          <h3>Acontecimentos</h3>
+          {(selected?.history ?? world.events).slice(0, 5).map((e) => (
+            <p className="history-entry" key={e.id}>
+              {e.text}
+            </p>
+          ))}
+          {import.meta.env.DEV && user && (
+            <button
+              disabled={busy}
+              onClick={() =>
+                void action(async () => {
+                  await api("/dev/time", { days: 3 });
+                  await refresh();
+                })
+              }
+            >
+              Inspeção: avançar 3 dias
+            </button>
+          )}
+          <button onClick={() => setPanel(null)}>Fechar</button>
+        </aside>
+      )}
     </div>
-  );
-}
-function resourceLabel(k: string) {
-  return (
-    (
-      {
-        Food: "Alimento",
-        Wood: "Madeira",
-        Stone: "Pedra",
-        Metal: "Metal",
-        Energy: "Energia",
-      } as Record<string, string>
-    )[k] ?? k
-  );
-}
-function professionLabel(k: string) {
-  return (
-    (
-      {
-        Builder: "Construtor",
-        Farmer: "Agricultor",
-        Woodcutter: "Lenhador",
-        Miner: "Minerador",
-      } as Record<string, string>
-    )[k] ?? k
-  );
-}
-function taskLabel(k: string) {
-  return (
-    (
-      {
-        Exploring: "Explorando",
-        Walking: "A caminho",
-        Building: "Construindo",
-        Farming: "Cultivando",
-        Gathering: "Coletando",
-        Mining: "Minerando",
-        Resting: "Descansando",
-        Eating: "Comendo",
-      } as Record<string, string>
-    )[k] ?? k
-  );
-}
-function statusLabel(k: string) {
-  return (
-    (
-      {
-        OPEN: "EM NEGOCIAÇÃO",
-        ACCEPTED: "ACEITA",
-        REJECTED: "RECUSADA",
-        COUNTERED: "CONTRAPROPOSTA",
-        INVALIDATED: "ENCERRADA",
-      } as Record<string, string>
-    )[k] ?? k
-  );
-}
-function Empty({
-  icon,
-  title,
-  text,
-}: {
-  icon: string;
-  title: string;
-  text: string;
-}) {
-  return (
-    <div className="empty">
-      <Icon name={icon} size={35} />
-      <h3>{title}</h3>
-      <p>{text}</p>
-    </div>
-  );
-}
-function TerritoryCard({ t, onClick }: { t: Territory; onClick: () => void }) {
-  return (
-    <button className="territory-card" onClick={onClick}>
-      <span className="land-icon">
-        <Icon name="tree" size={27} />
-      </span>
-      <span>
-        <b>{t.name}</b>
-        <small>
-          {number(t.areaKm2)} km² · #{t.number}
-        </small>
-      </span>
-      <Icon name="arrow" size={18} />
-    </button>
   );
 }
 createRoot(document.getElementById("root")!).render(<App />);
-
-function CharacterPortrait({ profession }: { profession: string }) {
-  const role = characterArt(profession);
-  return (
-    <span
-      className="character-portrait"
-      aria-hidden="true"
-      style={{
-        backgroundImage: `url(/characters/${role}.png)`,
-        backgroundPosition: `${-CHARACTER_ART[role].idle * 80}px 0`,
-      }}
-    />
-  );
-}

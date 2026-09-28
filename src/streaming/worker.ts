@@ -3,6 +3,7 @@ import type { GenerateRequest, GenerateReply } from '../world/types.ts';
 import { CHUNK_SIZE, CHUNK_PADDING, keyOf } from '../world/config.ts';
 import { decodeTerrain } from '../world/codec.ts';
 import { generateRegion, extractCells } from '../world/generate.ts';
+import { buildEnvironmentTile, environmentTransfers } from "../environment/tile.ts";
 import { renderChunk } from '../render/chunk.ts';
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
@@ -26,8 +27,9 @@ scope.onmessage = async (event: MessageEvent<GenerateRequest>) => {
     }
     const region = generateRegion(request.key,terrain,request.seed);
     const bitmap = renderChunk(region), cells = extractCells(region);
-    const reply: GenerateReply = {type:'ready',id:request.id,key:request.key,bitmap,...cells,generationMs:performance.now()-start};
-    scope.postMessage(reply,[bitmap,cells.terrain.buffer,cells.biomes.buffer,cells.elevation.buffer,cells.moisture.buffer]);
+    const environment=buildEnvironmentTile(region,keyOf(request.key),request.key.level);
+    const reply: GenerateReply = {type:'ready',id:request.id,key:request.key,bitmap,environment,...cells,generationMs:performance.now()-start};
+    scope.postMessage(reply,[bitmap,...environmentTransfers(environment),cells.terrain.buffer,cells.biomes.buffer,cells.elevation.buffer,cells.moisture.buffer]);
   } catch (error) {
     const reply: GenerateReply = {type:'error',id:request.id,key:request.key,message:error instanceof Error?error.message:String(error)};
     scope.postMessage(reply);

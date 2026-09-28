@@ -1,0 +1,354 @@
+{
+  "version": 1,
+  "source": "Official user supplied Farm RPG FREE 16x16 pack and repository biome PNGs",
+  "sprites": {
+    "maple": {
+      "source": "data/world-pack/maple.png",
+      "sourceSha256": "a1debd27abccb69fcda22c01fa4e88c064a170f35bde93e1a7626608b2ae29ff",
+      "crop": [
+        96,
+        1,
+        32,
+        46
+      ],
+      "width": 32,
+      "height": 46,
+      "pivot": [
+        16,
+        45
+      ],
+      "biomes": [
+        2,
+        6
+      ],
+      "mirror": false,
+      "sha256": "a3e4c09b85968accda0120c8a365e3fd0e4c9bdf408015815d271830abe2c2ea",
+      "palette": null
+    },
+    "sapling": {
+      "source": "data/world-pack/maple.png",
+      "sourceSha256": "a1debd27abccb69fcda22c01fa4e88c064a170f35bde93e1a7626608b2ae29ff",
+      "crop": [
+        71,
+        14,
+        20,
+        33
+      ],
+      "width": 20,
+      "height": 33,
+      "pivot": [
+        10,
+        32
+      ],
+      "biomes": [
+        2,
+        6
+      ],
+      "mirror": false,
+      "sha256": "b050a6ef698874c4c8c94399a25140a28af72bbf1377d919692d44555f4f6b6e",
+      "palette": null
+    },
+    "seedling": {
+      "source": "data/world-pack/maple.png",
+      "sourceSha256": "a1debd27abccb69fcda22c01fa4e88c064a170f35bde93e1a7626608b2ae29ff",
+      "crop": [
+        43,
+        34,
+        9,
+        12
+      ],
+      "width": 9,
+      "height": 12,
+      "pivot": [
+        4,
+        11
+      ],
+      "biomes": [
+        2,
+        6
+      ],
+      "mirror": false,
+      "sha256": "c78cf7dc5fe793495c7379fe81ad5686596fadb0593b332b34c7392631a44260",
+      "palette": null
+    },
+    "stump": {
+      "source": "data/world-pack/maple.png",
+      "sourceSha256": "a1debd27abccb69fcda22c01fa4e88c064a170f35bde93e1a7626608b2ae29ff",
+      "crop": [
+        137,
+        35,
+        14,
+        12
+      ],
+      "width": 14,
+      "height": 12,
+      "pivot": [
+        7,
+        11
+      ],
+      "biomes": [
+        1,
+        2,
+        3,
+        6
+      ],
+      "mirror": false,
+      "sha256": "6c53f844eb8f8624820e214e51615fa08a3392696b4bc07036271febde141d60",
+      "palette": null
+    },
+    "forest": {
+      "source": "public/forest.png",
+      "sourceSha256": "ce99326640476c977cc32e69fd280e77868e1c753ac35d35b35e20e2494761ff",
+      "crop": [
+        4,
+        10,
+        40,
+        52
+      ],
+      "width": 40,
+      "height": 52,
+      "pivot": [
+        20,
+        51
+      ],
+      "biomes": [
+        2,
+        6
+      ],
+      "mirror": false,
+      "sha256": "d19f015552107c9a12d1b24f745c1eb96355bf6cff9b0c07fadf7ac98b8673d3",
+      "palette": null
+    },
+    "jungle": {
+      "source": "public/jungle.png",
+      "sourceSha256": "47f2681bcf3e75a7693a0c97620b555c67d1567880d2d8715fbbee33e21e0b8d",
+      "crop": [
+        3,
+        10,
+        38,
+        54
+      ],
+      "width": 38,
+      "height": 54,
+      "pivot": [
+        19,
+        53
+      ],
+      "biomes": [
+        1
+      ],
+      "mirror": false,
+      "sha256": "515c9f70885838a376ea358edeeaa8aa3dd02c1d830e7b1bbc4398f3a739a42d",
+      "palette": null
+    },
+    "acacia": {
+      "source": "public/savanna.png",
+      "sourceSha256": "0381f18316877866d08b15fc4dd3bc39d55ce5136ddbc280ee913391f5dffc4b",
+      "crop": [
+        3,
+        8,
+        52,
+        51
+      ],
+      "width": 52,
+      "height": 51,
+      "pivot": [
+        26,
+        50
+      ],
+      "biomes": [
+        4
+      ],
+      "mirror": false,
+      "sha256": "d52701a26f82607d3b14bae661dfbc16c90e79ff63b362d378280093877d8e3e",
+      "palette": null
+    },
+    "palm": {
+      "source": "public/beach.png",
+      "sourceSha256": "1ed8273d4ff945a007842247f4c51e77ae7fa43847c78c269b9d0cbf74edb06a",
+      "crop": [
+        4,
+        9,
+        41,
+        54
+      ],
+      "width": 41,
+      "height": 54,
+      "pivot": [
+        20,
+        53
+      ],
+      "biomes": [
+        1,
+        5
+      ],
+      "mirror": false,
+      "sha256": "d1c575519981065df831070fe428513db0f189f4ebf07193bf637f6ff9d04eeb",
+      "palette": null
+    },
+    "snowPine": {
+      "source": "public/snow.png",
+      "sourceSha256": "0a577b215a00e52138709b5ce49132e35f846166255c14ce87c3822ecbf66c80",
+      "crop": [
+        4,
+        11,
+        35,
+        52
+      ],
+      "width": 35,
+      "height": 52,
+      "pivot": [
+        17,
+        51
+      ],
+      "biomes": [
+        3,
+        8
+      ],
+      "mirror": false,
+      "sha256": "343423fd4fd2caed1ac0d8ed92db1ab0d8016a55a5ec0a57c3f03cd7e944fb03",
+      "palette": null
+    },
+    "pine": {
+      "source": "public/snow.png",
+      "sourceSha256": "0a577b215a00e52138709b5ce49132e35f846166255c14ce87c3822ecbf66c80",
+      "crop": [
+        4,
+        11,
+        35,
+        52
+      ],
+      "width": 35,
+      "height": 52,
+      "pivot": [
+        17,
+        51
+      ],
+      "biomes": [
+        3,
+        8
+      ],
+      "mirror": false,
+      "sha256": "0ad69173b38b73e2bf17fd4e5a336407944f9b0eeca5bba11899b8e27b984bbc",
+      "palette": "Snow highlights replaced by three foliage colors; original silhouette retained"
+    },
+    "grass": {
+      "source": "data/world-pack/grass.png",
+      "sourceSha256": "531e39fc16fceb26ad50317b48995ef72700ca334fee623032acc944bb3f8697",
+      "crop": [
+        64,
+        48,
+        16,
+        16
+      ],
+      "width": 16,
+      "height": 16,
+      "pivot": [
+        8,
+        15
+      ],
+      "biomes": [
+        1,
+        2,
+        4,
+        6
+      ],
+      "mirror": false,
+      "sha256": "cca4d48cc5c7a3cdee210e765b00de1dafb01f78129dfa904600534f51c72145",
+      "palette": null
+    }
+  },
+  "sheets": {
+    "chick": {
+      "source": "data/world-pack/chick.png",
+      "sha256": "163b3baf6c0adbbbd053274b4c1214f02838cb2e0ceaf8261621c25c9d6a6d39",
+      "frameWidth": 16,
+      "frameHeight": 16,
+      "frames": 4,
+      "sideRow": 0,
+      "pivot": [
+        8,
+        15
+      ],
+      "mirror": true
+    },
+    "chicken-blonde": {
+      "source": "data/world-pack/chicken-blonde.png",
+      "sha256": "600757b4f3ad40f0088eb836f0a7829346fc228104fc4d76095f325c33868498",
+      "frameWidth": 16,
+      "frameHeight": 16,
+      "frames": 4,
+      "sideRow": 0,
+      "pivot": [
+        8,
+        15
+      ],
+      "mirror": true
+    },
+    "chicken-red": {
+      "source": "data/world-pack/chicken-red.png",
+      "sha256": "7c36ceabe7d63e957b7e02602900d7a527ff1d030c6c7a98588911e618b1720c",
+      "frameWidth": 16,
+      "frameHeight": 16,
+      "frames": 4,
+      "sideRow": 0,
+      "pivot": [
+        8,
+        15
+      ],
+      "mirror": true
+    },
+    "cow-female": {
+      "source": "data/world-pack/cow-female.png",
+      "sha256": "77d1875ebb79ca96afa6bb0a85ed3e9c62dc99635978c24f730d270275f365c6",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "frames": 4,
+      "sideRow": 0,
+      "pivot": [
+        16,
+        30
+      ],
+      "mirror": true
+    },
+    "cow-male": {
+      "source": "data/world-pack/cow-male.png",
+      "sha256": "4bfd41269f333238fa4b13e11ba268f08e9987bf811779e6cfc828431b1e878b",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "frames": 4,
+      "sideRow": 0,
+      "pivot": [
+        16,
+        30
+      ],
+      "mirror": true
+    },
+    "crops": {
+      "source": "data/world-pack/crops.png",
+      "sha256": "34c9f9c803c3a17450ea87c19575c8c8c9bb835132b0b39db58fdaa81f46fa8d",
+      "frameWidth": 16,
+      "frameHeight": 16,
+      "frames": null,
+      "sideRow": 0,
+      "pivot": [
+        8,
+        15
+      ],
+      "mirror": false
+    },
+    "grass": {
+      "source": "data/world-pack/grass.png",
+      "sha256": "531e39fc16fceb26ad50317b48995ef72700ca334fee623032acc944bb3f8697",
+      "frameWidth": 16,
+      "frameHeight": 16,
+      "frames": null,
+      "sideRow": 0,
+      "pivot": [
+        8,
+        15
+      ],
+      "mirror": false
+    }
+  }
+}
